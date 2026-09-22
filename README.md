@@ -8,7 +8,7 @@
 ![Bootstrap](https://img.shields.io/badge/Bootstrap-5-7952B3)
 ![License](https://img.shields.io/badge/License-ISC-green)
 
-> **Kaliluni Coffee Farmers Delivery System** is an end-to-end digital cooperative platform designed for coffee farmers cooperative societies. The system streamlines cherry delivery logging, financial accounting (harvest payouts, advances, input deductions), membership administration, official announcements, downloadable forms, and cooperative governance.
+Kaliluni Coffee Farmers Delivery System is an end-to-end digital cooperative platform designed for coffee farmers cooperative societies. The system streamlines cherry delivery logging, financial accounting (harvest payouts, advances, input deductions), membership administration, official announcements, downloadable forms, and cooperative governance.
 
 ---
 
