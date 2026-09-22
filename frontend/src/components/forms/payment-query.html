@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Payment Query — Kaliluni Factory</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1f2937; background: #f5f6f8; padding: 20px; line-height: 1.5; }
+  .page { max-width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 20mm; border: 1px solid #e5e7eb; }
+  .header { text-align: center; border-bottom: 3px double #1a4d2e; padding-bottom: 14px; margin-bottom: 24px; }
+  .header h1 { color: #1a4d2e; font-size: 20px; letter-spacing: 2px; font-weight: 700; margin-bottom: 4px; }
+  .header p { color: #8B1A1A; font-size: 11px; letter-spacing: 3px; font-weight: 600; }
+  .title { text-align: center; font-size: 16px; font-weight: 700; color: #1f2937; letter-spacing: 1px; background: #f0f4f1; padding: 10px; margin-bottom: 24px; border-top: 2px solid #1a4d2e; border-bottom: 2px solid #1a4d2e; }
+  .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #6b7280; font-weight: 700; margin: 20px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+  .field { display: flex; margin-bottom: 14px; align-items: flex-end; }
+  .field label { flex: 0 0 200px; font-size: 12px; font-weight: 600; color: #1f2937; }
+  .field .line { flex: 1; border-bottom: 1px solid #6b7280; min-height: 22px; }
+  .field-textarea { margin: 12px 0; }
+  .field-textarea label { display: block; font-size: 12px; font-weight: 600; color: #1f2937; margin-bottom: 8px; }
+  .field-textarea .box { border: 1px solid #6b7280; border-radius: 4px; min-height: 100px; padding: 10px; }
+  .checkbox-group { margin: 10px 0; font-size: 12px; }
+  .checkbox-group label { display: block; margin-bottom: 8px; }
+  .checkbox { display: inline-block; width: 12px; height: 12px; border: 1.5px solid #1f2937; margin-right: 8px; vertical-align: middle; }
+  .signature-row { display: flex; justify-content: space-between; margin-top: 40px; font-size: 11px; }
+  .signature-block { flex: 0 0 45%; }
+  .signature-block .sig-line { border-bottom: 1px solid #1f2937; height: 40px; margin-bottom: 6px; }
+  .signature-block .label { font-weight: 600; }
+  .office-use { margin-top: 30px; border: 2px dashed #8B1A1A; padding: 16px; background: #fdf7f7; border-radius: 4px; }
+  .office-use .title-small { color: #8B1A1A; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; margin-bottom: 12px; }
+  .footer { text-align: center; font-size: 10px; color: #9ca3af; margin-top: 30px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+  @media print { body { background: #fff; padding: 0; } .page { border: none; padding: 15mm; max-width: 100%; min-height: auto; } @page { size: A4; margin: 0; } }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <h1>KALILUNI FACTORY CO-OPERATIVE SOCIETY</h1>
+      <p>COFFEE MANAGEMENT SYSTEM</p>
+    </div>
+
+    <div class="title">PAYMENT QUERY FORM</div>
+
+    <div class="section-title">Farmer Details</div>
+    <div class="field"><label>Member Number:</label><div class="line"></div></div>
+    <div class="field"><label>Full Name:</label><div class="line"></div></div>
+    <div class="field"><label>Phone Number:</label><div class="line"></div></div>
+    <div class="field"><label>Location / Village:</label><div class="line"></div></div>
+
+    <div class="section-title">Query Details</div>
+    <div class="field"><label>Date of Query:</label><div class="line"></div></div>
+    <div class="field"><label>Payment/Season Reference:</label><div class="line"></div></div>
+
+    <div class="checkbox-group">
+      <strong style="display: block; margin-bottom: 10px; font-size: 12px;">Type of Query:</strong>
+      <label><span class="checkbox"></span> Missing or incorrect payment</label>
+      <label><span class="checkbox"></span> Incorrect deduction</label>
+      <label><span class="checkbox"></span> Advance not reflected correctly</label>
+      <label><span class="checkbox"></span> Missing delivery record</label>
+      <label><span class="checkbox"></span> Other (specify below)</label>
+    </div>
+
+    <div class="field-textarea">
+      <label>Describe your query in detail:</label>
+      <div class="box"></div>
+    </div>
+
+    <div class="field-textarea">
+      <label>Expected resolution:</label>
+      <div class="box" style="min-height: 60px;"></div>
+    </div>
+
+    <div class="signature-row">
+      <div class="signature-block"><div class="sig-line"></div><div class="label">Farmer Signature</div></div>
+      <div class="signature-block"><div class="sig-line"></div><div class="label">Date</div></div>
+    </div>
+
+    <div class="office-use">
+      <div class="title-small">For Office Use Only</div>
+      <div class="field"><label>Received By (Staff):</label><div class="line"></div></div>
+      <div class="field"><label>Date Received:</label><div class="line"></div></div>
+      <div class="field"><label>Resolution:</label><div class="line"></div></div>
+      <div class="signature-row" style="margin-top: 20px;">
+        <div class="signature-block"><div class="sig-line"></div><div class="label">Signature</div></div>
+        <div class="signature-block"><div class="sig-line"></div><div class="label">Date Resolved</div></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Kaliluni Factory Co-operative Society · P.O. Box · Kathiani, Machakos County · Kenya
+    </div>
+  </div>
+</body>
+</html>
