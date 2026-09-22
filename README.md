@@ -1,12 +1,12 @@
 # ☕ Kaliluni Coffee Farmers Delivery System
 
-[![React](https://img.shields.io/badge/React-19.2-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-8.2-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Node.js](https://img.shields.io/badge/Node.js-ES_Modules-339933?style=flat&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Express](https://img.shields.io/badge/Express-5.2-000000?style=flat&logo=express&logoColor=white)](https://expressjs.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-8.23-336791?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Bootstrap](https://img.shields.io/badge/Bootstrap-5.3-7952B3?style=flat&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
-[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
+![React](https://img.shields.io/badge/React-19-blue)
+![Vite](https://img.shields.io/badge/Vite-8-purple)
+![Node.js](https://img.shields.io/badge/Node.js-ES%20Modules-green)
+![Express](https://img.shields.io/badge/Express-5-lightgrey)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-blue)
+![Bootstrap](https://img.shields.io/badge/Bootstrap-5-7952B3)
+![License](https://img.shields.io/badge/License-ISC-green)
 
 > **Kaliluni Coffee Farmers Delivery System** is an end-to-end digital cooperative platform designed for coffee farmers cooperative societies. The system streamlines cherry delivery logging, financial accounting (harvest payouts, advances, input deductions), membership administration, official announcements, downloadable forms, and cooperative governance.
 
