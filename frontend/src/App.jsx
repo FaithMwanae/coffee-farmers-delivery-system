@@ -10,6 +10,9 @@ import Register from './pages/auth/Register';
 import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
 
+// Maintenance page
+import Maintenance from './pages/maintenance/Maintenance';
+
 // Account pages
 import BecomeFarmer from './pages/account/BecomeFarmer';
 
@@ -54,6 +57,9 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
         </Route>
+
+        {/* MAINTENANCE — standalone, no layout */}
+        <Route path="/maintenance" element={<Maintenance />} />
 
         {/* ============ PROTECTED ROUTES ============ */}
         <Route element={<DashboardLayout />}>

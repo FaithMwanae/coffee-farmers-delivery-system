@@ -48,6 +48,34 @@ const verifyPassword = async (inputPassword, storedPassword) => {
 };
 
 // ============================================
+// HELPER — Check if maintenance mode is currently active
+// ============================================
+const isMaintenanceActive = async () => {
+  try {
+    const r = await pool.query(
+      'SELECT maintenance_mode, maintenance_start, maintenance_end FROM settings LIMIT 1'
+    );
+
+    if (r.rows.length === 0) return { active: false };
+
+    const s = r.rows[0];
+    let active = Boolean(s.maintenance_mode);
+
+    if (s.maintenance_start && s.maintenance_end) {
+      const now = new Date();
+      const start = new Date(s.maintenance_start);
+      const end = new Date(s.maintenance_end);
+      if (now >= start && now <= end) active = true;
+    }
+
+    return { active, settings: s };
+  } catch (e) {
+    console.error('Maintenance check error:', e.message);
+    return { active: false };
+  }
+};
+
+// ============================================
 // POST /api/auth/login
 // ============================================
 export const login = async (req, res) => {
@@ -82,6 +110,27 @@ export const login = async (req, res) => {
     if (!isMatch) {
       console.log('❌ Password mismatch');
       return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+
+    // ⭐ MAINTENANCE MODE CHECK — only admins and CEO can log in
+    const maintenance = await isMaintenanceActive();
+    if (maintenance.active && !['admin', 'ceo'].includes(user.role)) {
+      console.log('🚧 MAINTENANCE MODE: Blocking', user.role, user.email);
+      return res.status(503).json({
+        message:
+          'System is currently under maintenance. Please try again later. Only administrators can log in at this time.',
+        maintenance: true,
+      });
+    }
+
+    // ⭐ UPDATE LAST LOGIN TIMESTAMP
+    try {
+      await pool.query(
+        'UPDATE users SET last_login = NOW() WHERE id = $1',
+        [user.id]
+      );
+    } catch (e) {
+      console.error('Last login update error:', e.message);
     }
 
     const token = generateToken({
@@ -120,11 +169,59 @@ export const login = async (req, res) => {
 };
 
 // ============================================
+// GET /api/auth/maintenance-status (PUBLIC)
+// ============================================
+export const getMaintenanceStatus = async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT maintenance_mode, maintenance_message,
+              maintenance_start, maintenance_end
+       FROM settings LIMIT 1`
+    );
+
+    if (r.rows.length === 0) {
+      return res.json({ active: false });
+    }
+
+    const s = r.rows[0];
+    const now = new Date();
+
+    let active = Boolean(s.maintenance_mode);
+
+    if (s.maintenance_start && s.maintenance_end) {
+      const start = new Date(s.maintenance_start);
+      const end = new Date(s.maintenance_end);
+      if (now >= start && now <= end) active = true;
+    }
+
+    res.json({
+      active,
+      message:
+        s.maintenance_message ||
+        'We are currently performing scheduled maintenance. Please check back shortly.',
+      start: s.maintenance_start,
+      end: s.maintenance_end,
+    });
+  } catch (error) {
+    console.error('Maintenance status error:', error);
+    res.json({ active: false });
+  }
+};
+
+// ============================================
 // POST /api/auth/register
 // ============================================
 export const register = async (req, res) => {
   const { name, email, phone, location, coffeeTrees, password } = req.body;
   console.log('📝 REGISTER ATTEMPT:', email);
+
+  const maintenance = await isMaintenanceActive();
+  if (maintenance.active) {
+    return res.status(503).json({
+      message: 'Registration is temporarily disabled during maintenance.',
+      maintenance: true,
+    });
+  }
 
   if (!name || !email || !phone || !location || !password) {
     return res.status(400).json({
@@ -139,7 +236,6 @@ export const register = async (req, res) => {
     });
   }
 
-  // ✅ STRONG PASSWORD VALIDATION
   const passCheck = validateStrongPassword(password);
   if (!passCheck.isValid) {
     return res.status(400).json({
@@ -233,7 +329,6 @@ export const getCurrentUser = async (req, res) => {
 
 // ============================================
 // POST /api/auth/forgot-password
-// Generates a 6-digit code and emails it
 // ============================================
 export const forgotPassword = async (req, res) => {
   const { email } = req.body;
@@ -254,17 +349,14 @@ export const forgotPassword = async (req, res) => {
     if (r.rows.length > 0) {
       const user = r.rows[0];
 
-      // Generate 6-digit code
       generatedCode = String(Math.floor(100000 + Math.random() * 900000));
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-      // Invalidate all previous codes for this email
       await pool.query(
         'UPDATE password_resets SET used = TRUE WHERE LOWER(email) = $1 AND used = FALSE',
         [cleanEmail]
       );
 
-      // Save the new code with a UNIQUE token (avoids unique constraint)
       const uniqueToken = crypto.randomBytes(16).toString('hex');
 
       await pool.query(
@@ -320,13 +412,11 @@ export const forgotPassword = async (req, res) => {
       }
     }
 
-    // Always return the same message (prevents email enumeration)
     const response = {
       success: true,
       message: 'If that email exists, a 6-digit code has been sent.',
     };
 
-    // In development: expose the code so testing works even if email fails
     if (process.env.NODE_ENV === 'development' && generatedCode) {
       response.devCode = generatedCode;
     }
@@ -340,7 +430,6 @@ export const forgotPassword = async (req, res) => {
 
 // ============================================
 // POST /api/auth/verify-reset-code
-// Validates the 6-digit code without changing password
 // ============================================
 export const verifyResetCode = async (req, res) => {
   const { email, code } = req.body;
@@ -385,7 +474,6 @@ export const verifyResetCode = async (req, res) => {
 
 // ============================================
 // POST /api/auth/reset-password
-// Body: { email, code, password, confirmPassword }
 // ============================================
 export const resetPassword = async (req, res) => {
   const { email, code, password, confirmPassword } = req.body;
@@ -398,7 +486,6 @@ export const resetPassword = async (req, res) => {
     return res.status(400).json({ message: 'Passwords do not match.' });
   }
 
-  // ✅ STRONG PASSWORD VALIDATION
   const passCheck = validateStrongPassword(password);
   if (!passCheck.isValid) {
     return res.status(400).json({
@@ -413,7 +500,6 @@ export const resetPassword = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Validate code
     const r = await client.query(
       `SELECT * FROM password_resets
        WHERE LOWER(email) = $1
@@ -430,10 +516,8 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired code.' });
     }
 
-    // Hash new password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Update password
     const u = await client.query(
       `UPDATE users SET password = $1
        WHERE LOWER(email) = $2
@@ -446,13 +530,11 @@ export const resetPassword = async (req, res) => {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    // Mark all codes for this email as used
     await client.query(
       'UPDATE password_resets SET used = TRUE WHERE LOWER(email) = $1',
       [cleanEmail]
     );
 
-    // Audit log
     await client.query(
       `INSERT INTO audit_logs (user_name, role, action, details, ip)
        VALUES ($1, $2, 'PASSWORD_RESET', 'Password reset via email code', $3)`,
@@ -477,7 +559,7 @@ export const resetPassword = async (req, res) => {
 };
 
 // ============================================
-// GET /api/auth/reset-link/:token (legacy redirect)
+// GET /api/auth/reset-link/:token (legacy)
 // ============================================
 export const handleResetLink = async (req, res) => {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -485,7 +567,7 @@ export const handleResetLink = async (req, res) => {
 };
 
 // ============================================
-// POST /api/auth/change-password (authenticated)
+// POST /api/auth/change-password
 // ============================================
 export const changePassword = async (req, res) => {
   const { currentPassword, newPassword, confirmPassword } = req.body;
@@ -497,7 +579,6 @@ export const changePassword = async (req, res) => {
     return res.status(400).json({ message: 'New passwords do not match.' });
   }
 
-  // ✅ STRONG PASSWORD VALIDATION
   const passCheck = validateStrongPassword(newPassword);
   if (!passCheck.isValid) {
     return res.status(400).json({

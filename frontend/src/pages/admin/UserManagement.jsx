@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Container, Card, Button, Modal, Form, Badge, Spinner, Alert, Row, Col } from 'react-bootstrap';
+import {
+  Container, Card, Button, Modal, Form, Badge, Spinner, Alert,
+  Row, Col, ButtonGroup,
+} from 'react-bootstrap';
 import { adminApi } from '../../api/adminApi';
-import { formatDateTime } from '../../utils/formatters';
+import { formatDateTime, formatRelativeTime, isUserOnline } from '../../utils/formatters';
 import DataTable from '../../components/common/DataTable';
 import PageHeader from '../../components/common/PageHeader';
 import StatsCard from '../../components/common/StatsCard';
-import PasswordStrengthMeter from '../../components/common/PasswordStrengthMeter';
-import { checkPasswordStrength } from '../../utils/passwordStrength';
 import { toast } from 'react-toastify';
 
 const UserManagement = () => {
@@ -16,13 +17,22 @@ const UserManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [form, setForm] = useState({ name: '', email: '', role: 'farmer' });
+  const [tick, setTick] = useState(0); // ⭐ forces re-render for time updates
 
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    role: 'farmer',
+    password: '',
+  });
+
+  // Load users
   const loadUsers = async () => {
     try {
       const data = await adminApi.getAllUsers();
       setUsers(data);
     } catch (err) {
+      console.error(err);
       setError('Failed to load users');
     } finally {
       setLoading(false);
@@ -33,7 +43,16 @@ const UserManagement = () => {
     loadUsers();
   }, []);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  // ⭐ Auto-refresh timestamps every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleChange = (e) =>
+    setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleOpenCreate = () => {
     setEditId(null);
@@ -43,37 +62,39 @@ const UserManagement = () => {
 
   const handleOpenEdit = (user) => {
     setEditId(user.id);
-    setForm({ name: user.name, email: user.email, role: user.role });
+    setForm({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      password: '',
+    });
     setShowModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.email) {
-      toast.error('Please fill all fields');
+      toast.error('Please fill in name and email');
       return;
-    }
-
-    if (!editId && form.password) {
-      const strength = checkPasswordStrength(form.password);
-      if (!strength.isValid) {
-        toast.error('Password does not meet strong security requirements.');
-        return;
-      }
     }
 
     setSaving(true);
     try {
       if (editId) {
-        await adminApi.updateUser(editId, { name: form.name, email: form.email, role: form.role });
-        toast.success('User updated!');
+        await adminApi.updateUser(editId, {
+          name: form.name,
+          email: form.email,
+          role: form.role,
+        });
+        toast.success('User updated');
       } else {
         await adminApi.createUser(form);
-        toast.success('User created!');
+        toast.success('User created');
       }
       setShowModal(false);
       loadUsers();
     } catch (err) {
+      console.error(err);
       toast.error(err.response?.data?.message || 'Operation failed');
     } finally {
       setSaving(false);
@@ -81,18 +102,73 @@ const UserManagement = () => {
   };
 
   const handleToggleStatus = async (user) => {
+    const action = user.status === 'Active' ? 'deactivate' : 'activate';
+    if (!window.confirm(`Are you sure you want to ${action} ${user.name}?`)) return;
+
     try {
       await adminApi.toggleUserStatus(user.id);
-      toast.success(`User ${user.status === 'Active' ? 'deactivated' : 'activated'}`);
+      toast.success(`User ${action}d`);
       loadUsers();
     } catch (err) {
+      console.error(err);
       toast.error('Failed to update status');
     }
   };
 
   const roleBadge = (role) => {
-    const colors = { farmer: 'success', staff: 'primary', admin: 'dark' };
-    return <Badge bg={colors[role] || 'secondary'}>{role.toUpperCase()}</Badge>;
+    const colors = {
+      farmer: 'success',
+      staff: 'primary',
+      admin: 'dark',
+      ceo: 'danger',
+    };
+    return (
+      <Badge
+        bg={colors[role] || 'secondary'}
+        className="fw-normal"
+        style={{ fontSize: '0.65rem', letterSpacing: '0.5px', padding: '5px 8px' }}
+      >
+        {role.toUpperCase()}
+      </Badge>
+    );
+  };
+
+  // ⭐ Last Login cell — shows relative time + online dot
+  const renderLastLogin = (dateString, status) => {
+    if (!dateString) {
+      return <span className="text-muted small">Never logged in</span>;
+    }
+
+    const online = isUserOnline(dateString) && status === 'Active';
+
+    return (
+      <div className="d-flex align-items-center gap-2">
+        {online && (
+          <span
+            title="Online now"
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: '#22c55e',
+              display: 'inline-block',
+              boxShadow: '0 0 0 3px rgba(34, 197, 94, 0.2)',
+            }}
+          />
+        )}
+        <div>
+          <div
+            className={online ? 'text-success fw-semibold' : 'text-dark'}
+            style={{ fontSize: '0.82rem' }}
+          >
+            {formatRelativeTime(dateString)}
+          </div>
+          <div className="text-muted" style={{ fontSize: '0.7rem' }}>
+            {formatDateTime(dateString)}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const columns = [
@@ -102,33 +178,52 @@ const UserManagement = () => {
     {
       key: 'status',
       label: 'Status',
-      render: (v) => <Badge bg={v === 'Active' ? 'success' : 'secondary'}>{v}</Badge>,
+      render: (v) => (
+        <Badge
+          bg={v === 'Active' ? 'success' : 'secondary'}
+          className="fw-normal"
+          style={{ fontSize: '0.7rem' }}
+        >
+          {v}
+        </Badge>
+      ),
     },
-    { key: 'lastLogin', label: 'Last Login', render: (v) => <span className="small text-muted">{v}</span> },
+    {
+      key: 'lastLogin',
+      label: 'Last Login',
+      render: (v, row) => renderLastLogin(v, row.status),
+    },
     {
       key: 'actions',
       label: 'Actions',
       render: (_, row) => (
-        <div className="d-flex gap-1">
-          <Button size="sm" variant="outline-primary" onClick={() => handleOpenEdit(row)}>
-            ✏️ Edit
+        <ButtonGroup size="sm">
+          <Button
+            variant="outline-primary"
+            onClick={() => handleOpenEdit(row)}
+            style={{ fontSize: '0.8rem' }}
+          >
+            Edit
           </Button>
           <Button
-            size="sm"
             variant={row.status === 'Active' ? 'outline-danger' : 'outline-success'}
             onClick={() => handleToggleStatus(row)}
+            style={{ fontSize: '0.8rem' }}
           >
-            {row.status === 'Active' ? '🚫 Deactivate' : '✅ Activate'}
+            {row.status === 'Active' ? 'Deactivate' : 'Activate'}
           </Button>
-        </div>
+        </ButtonGroup>
       ),
     },
   ];
 
   if (loading) {
     return (
-      <div className="text-center py-5">
-        <Spinner animation="border" variant="success" />
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
+        <div className="text-center">
+          <Spinner animation="border" variant="success" />
+          <p className="text-muted mt-3 small">Loading users...</p>
+        </div>
       </div>
     );
   }
@@ -139,63 +234,102 @@ const UserManagement = () => {
     farmers: users.filter((u) => u.role === 'farmer').length,
     staff: users.filter((u) => u.role === 'staff').length,
     admins: users.filter((u) => u.role === 'admin').length,
+    ceos: users.filter((u) => u.role === 'ceo').length,
+    online: users.filter((u) => isUserOnline(u.lastLogin) && u.status === 'Active').length,
   };
 
   return (
-    <Container fluid>
+    <Container fluid className="px-0">
       <PageHeader
         title="User Management"
-        subtitle={`${users.length} registered users`}
+        subtitle={`${users.length} registered users — ${counts.online} online now`}
         action={
-          <Button variant="success" onClick={handleOpenCreate}>
-            ➕ Add New User
+          <Button variant="success" size="sm" onClick={handleOpenCreate}>
+            Add New User
           </Button>
         }
       />
 
-      <Row className="mb-4">
-        <Col md={4} sm={6} className="mb-3">
-          <StatsCard title="Farmers" value={counts.farmers} color="success" />
+      {/* Stats */}
+      <Row className="g-3 mb-4">
+        <Col xs={6} lg={3}>
+          <StatsCard
+            title="Farmers"
+            value={counts.farmers}
+            subtitle="Registered members"
+            color="success"
+            icon="bi-people"
+          />
         </Col>
-        <Col md={4} sm={6} className="mb-3">
-          <StatsCard title="Staff" value={counts.staff} color="primary" />
+        <Col xs={6} lg={3}>
+          <StatsCard
+            title="Staff"
+            value={counts.staff}
+            subtitle="Operations team"
+            color="primary"
+            icon="bi-person-badge"
+          />
         </Col>
-        <Col md={4} sm={6} className="mb-3">
-          <StatsCard title="Admins" value={counts.admins} color="dark" />
+        <Col xs={6} lg={3}>
+          <StatsCard
+            title="Admins & CEO"
+            value={counts.admins + counts.ceos}
+            subtitle="Leadership"
+            color="dark"
+            icon="bi-shield-lock"
+          />
+        </Col>
+        <Col xs={6} lg={3}>
+          <StatsCard
+            title="Online Now"
+            value={counts.online}
+            subtitle="Active in last 5 min"
+            color="success"
+            icon="bi-circle-fill"
+          />
         </Col>
       </Row>
 
-      <Card className="shadow-sm border-0">
+      {/* Users Table */}
+      <Card className="border-0 shadow-sm">
         <Card.Body>
           <DataTable
             columns={columns}
             data={users}
             searchPlaceholder="Search by name, email, or role..."
-            searchKeys={['name', 'email', 'role']}
+            searchKeys={['name', 'email', 'role', 'status']}
             itemsPerPage={10}
           />
         </Card.Body>
       </Card>
 
-      {/* Add/Edit Modal */}
+      {/* Add / Edit Modal */}
       <Modal show={showModal} onHide={() => setShowModal(false)} centered>
         <Modal.Header closeButton>
-          <Modal.Title>{editId ? 'Edit User' : 'Create New User'}</Modal.Title>
+          <Modal.Title style={{ fontSize: '1.05rem', fontWeight: 600 }}>
+            {editId ? 'Edit User' : 'Create New User'}
+          </Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
             <Form.Group className="mb-3">
-              <Form.Label>Full Name *</Form.Label>
+              <Form.Label className="small fw-semibold text-secondary">
+                Full Name *
+              </Form.Label>
               <Form.Control
                 name="name"
                 value={form.name}
                 onChange={handleChange}
                 placeholder="Enter full name"
                 required
+                style={{ fontSize: '0.9rem' }}
               />
             </Form.Group>
+
             <Form.Group className="mb-3">
-              <Form.Label>Email Address *</Form.Label>
+              <Form.Label className="small fw-semibold text-secondary">
+                Email Address *
+              </Form.Label>
               <Form.Control
                 type="email"
                 name="email"
@@ -203,43 +337,79 @@ const UserManagement = () => {
                 onChange={handleChange}
                 placeholder="user@kaliluni.com"
                 required
+                style={{ fontSize: '0.9rem' }}
               />
             </Form.Group>
+
             <Form.Group className="mb-3">
-              <Form.Label>Role *</Form.Label>
-              <Form.Select name="role" value={form.role} onChange={handleChange}>
+              <Form.Label className="small fw-semibold text-secondary">
+                Role *
+              </Form.Label>
+              <Form.Select
+                name="role"
+                value={form.role}
+                onChange={handleChange}
+                style={{ fontSize: '0.9rem' }}
+              >
                 <option value="farmer">Farmer</option>
                 <option value="staff">Staff</option>
                 <option value="admin">Admin</option>
+                <option value="ceo">CEO</option>
               </Form.Select>
             </Form.Group>
+
             {!editId && (
               <>
-                <Form.Group className="mb-2">
-                  <Form.Label>Initial Password (Optional)</Form.Label>
+                <Form.Group className="mb-3">
+                  <Form.Label className="small fw-semibold text-secondary">
+                    Initial Password
+                  </Form.Label>
                   <Form.Control
-                    type="password"
+                    type="text"
                     name="password"
-                    value={form.password || ''}
+                    value={form.password}
                     onChange={handleChange}
-                    placeholder="Leave empty for default: 'password'"
+                    placeholder="Leave blank for default: password"
+                    style={{ fontSize: '0.9rem' }}
                   />
-                  {form.password && <PasswordStrengthMeter password={form.password} />}
+                  <Form.Text className="text-muted" style={{ fontSize: '0.72rem' }}>
+                    Minimum 6 characters. Default is "password".
+                  </Form.Text>
                 </Form.Group>
-                <Alert variant="info" className="mb-0 small">
-                  {form.password
-                    ? 'Ensure the password satisfies strong security requirements.'
-                    : "If left blank, default password 'password' is used. User can change or reset it anytime."}
+
+                <Alert variant="light" className="mb-0 small border">
+                  <i className="bi bi-info-circle me-1"></i>
+                  The user will be able to log in immediately with these credentials.
                 </Alert>
               </>
             )}
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowModal(false)}>
+            <Button
+              variant="outline-secondary"
+              size="sm"
+              onClick={() => setShowModal(false)}
+              style={{ fontSize: '0.85rem' }}
+            >
               Cancel
             </Button>
-            <Button type="submit" variant="success" disabled={saving}>
-              {saving ? 'Saving...' : editId ? 'Update User' : 'Create User'}
+            <Button
+              type="submit"
+              variant="success"
+              size="sm"
+              disabled={saving}
+              style={{ fontSize: '0.85rem' }}
+            >
+              {saving ? (
+                <>
+                  <Spinner as="span" animation="border" size="sm" className="me-2" />
+                  Saving...
+                </>
+              ) : editId ? (
+                'Update User'
+              ) : (
+                'Create User'
+              )}
             </Button>
           </Modal.Footer>
         </Form>

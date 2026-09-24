@@ -68,14 +68,25 @@ export const getRoleDistribution = async (req, res) => {
 
 // ============================================
 // GET /api/admin/users
+// ⭐ Returns last_login (real timestamp) + created_at
 // ============================================
 export const getAllUsers = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, name, email, role, status, created_at AS "lastLogin" FROM users ORDER BY id`
+      `SELECT
+         id,
+         name,
+         email,
+         role,
+         status,
+         created_at AS "createdAt",
+         last_login AS "lastLogin"
+       FROM users
+       ORDER BY id`
     );
     res.json(result.rows);
   } catch (error) {
+    console.error('Get users error:', error);
     res.status(500).json({ message: 'Server error loading users.' });
   }
 };
@@ -188,7 +199,7 @@ export const toggleUserStatus = async (req, res) => {
 const mapSettings = (s = {}) => ({
   ...s,
   ratePerKg: Number(s.rate_per_kg ?? 80),
-  advanceRatePerKg: Number(s.advance_rate_per_kg ?? 30),   // ⭐ NEW
+  advanceRatePerKg: Number(s.advance_rate_per_kg ?? 30),
   cooperativeFee: Number(s.cooperative_fee ?? 1200),
   loanInterestRate: Number(s.loan_interest_rate ?? 5),
   seasonStart: s.season_start
@@ -205,6 +216,15 @@ const mapSettings = (s = {}) => ({
   smsNotifications: Boolean(s.sms_notifications),
   emailNotifications: Boolean(s.email_notifications),
   maintenanceMode: Boolean(s.maintenance_mode),
+  maintenanceMessage:
+    s.maintenance_message ||
+    'We are currently performing scheduled maintenance. Please check back shortly.',
+  maintenanceStart: s.maintenance_start
+    ? new Date(s.maintenance_start).toISOString().slice(0, 16)
+    : '',
+  maintenanceEnd: s.maintenance_end
+    ? new Date(s.maintenance_end).toISOString().slice(0, 16)
+    : '',
 });
 
 // ============================================
@@ -226,11 +246,18 @@ export const getSettings = async (req, res) => {
 export const updateSettings = async (req, res) => {
   const {
     ratePerKg,
-    advanceRatePerKg,        // ⭐ NEW
+    advanceRatePerKg,
     cooperativeFee,
     loanInterestRate,
-    seasonStart, seasonEnd, currentSeason,
-    smsNotifications, emailNotifications, maintenanceMode,
+    seasonStart,
+    seasonEnd,
+    currentSeason,
+    smsNotifications,
+    emailNotifications,
+    maintenanceMode,
+    maintenanceMessage,
+    maintenanceStart,
+    maintenanceEnd,
   } = req.body;
 
   try {
@@ -238,22 +265,31 @@ export const updateSettings = async (req, res) => {
     let result;
 
     if (existing.rows.length === 0) {
-      // Insert new settings row
       result = await pool.query(
         `INSERT INTO settings
            (rate_per_kg, advance_rate_per_kg, cooperative_fee, loan_interest_rate,
             season_start, season_end, current_season,
-            sms_notifications, email_notifications, maintenance_mode)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            sms_notifications, email_notifications, maintenance_mode,
+            maintenance_message, maintenance_start, maintenance_end)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING *`,
         [
-          ratePerKg, advanceRatePerKg, cooperativeFee, loanInterestRate,
-          seasonStart || null, seasonEnd || null, currentSeason,
-          smsNotifications, emailNotifications, maintenanceMode,
+          ratePerKg,
+          advanceRatePerKg,
+          cooperativeFee,
+          loanInterestRate,
+          seasonStart || null,
+          seasonEnd || null,
+          currentSeason,
+          smsNotifications,
+          emailNotifications,
+          maintenanceMode,
+          maintenanceMessage || null,
+          maintenanceStart || null,
+          maintenanceEnd || null,
         ]
       );
     } else {
-      // Update existing
       result = await pool.query(
         `UPDATE settings SET
           rate_per_kg = COALESCE($1, rate_per_kg),
@@ -265,13 +301,26 @@ export const updateSettings = async (req, res) => {
           current_season = COALESCE($7, current_season),
           sms_notifications = COALESCE($8, sms_notifications),
           email_notifications = COALESCE($9, email_notifications),
-          maintenance_mode = COALESCE($10, maintenance_mode)
-         WHERE id = $11
+          maintenance_mode = COALESCE($10, maintenance_mode),
+          maintenance_message = COALESCE($11, maintenance_message),
+          maintenance_start = $12,
+          maintenance_end = $13
+         WHERE id = $14
          RETURNING *`,
         [
-          ratePerKg, advanceRatePerKg, cooperativeFee, loanInterestRate,
-          seasonStart || null, seasonEnd || null, currentSeason,
-          smsNotifications, emailNotifications, maintenanceMode,
+          ratePerKg,
+          advanceRatePerKg,
+          cooperativeFee,
+          loanInterestRate,
+          seasonStart || null,
+          seasonEnd || null,
+          currentSeason,
+          smsNotifications,
+          emailNotifications,
+          maintenanceMode,
+          maintenanceMessage || null,
+          maintenanceStart || null,
+          maintenanceEnd || null,
           existing.rows[0].id,
         ]
       );

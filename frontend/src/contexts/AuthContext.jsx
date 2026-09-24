@@ -25,35 +25,56 @@ export const AuthProvider = ({ children }) => {
 
   // ============================================
   // LOGIN
+  // ⭐ Handles maintenance mode (HTTP 503 + maintenance: true)
   // ============================================
   const login = async (email, password) => {
-    const { data } = await client.post('/auth/login', { email, password });
+    try {
+      const { data } = await client.post('/auth/login', { email, password });
 
-    if (!data.success) {
-      throw new Error(data.message || 'Login failed');
+      if (!data.success) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      // Save session
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      setToken(data.token);
+      setUser(data.user);
+
+      // Route to role-specific dashboard
+      const dashboardMap = {
+        farmer: '/farmer/dashboard',
+        staff: '/staff/dashboard',
+        admin: '/admin/dashboard',
+        ceo: '/ceo/dashboard',
+      };
+      const route = dashboardMap[data.user.role] || '/';
+      navigate(route);
+      toast.success(`Welcome back, ${data.user.name}!`);
+      return data.user;
+    } catch (err) {
+      // ⭐ Check for maintenance mode response
+      const status = err.response?.status;
+      const isMaintenance =
+        status === 503 || err.response?.data?.maintenance === true;
+
+      if (isMaintenance) {
+        console.log('🚧 Maintenance mode — redirecting to /maintenance');
+        navigate('/maintenance');
+        throw new Error(
+          err.response?.data?.message ||
+            'System is under maintenance. Please try again later.'
+        );
+      }
+
+      // Re-throw original error (invalid credentials, etc.)
+      throw err;
     }
-
-    // Save session
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user));
-    setToken(data.token);
-    setUser(data.user);
-
-    // Route to role-specific dashboard
-    const dashboardMap = {
-      farmer: '/farmer/dashboard',
-      staff: '/staff/dashboard',
-      admin: '/admin/dashboard',
-      ceo: '/ceo/dashboard',
-    };
-    const route = dashboardMap[data.user.role] || '/';
-    navigate(route);
-    toast.success(`Welcome back, ${data.user.name}!`);
-    return data.user;
   };
 
   // ============================================
   // REGISTER
+  // ⭐ Also handles maintenance mode
   // ============================================
   const register = async (userData) => {
     try {
@@ -65,7 +86,20 @@ export const AuthProvider = ({ children }) => {
 
       return data;
     } catch (err) {
-      const message = err.response?.data?.message || err.message || 'Registration failed';
+      const status = err.response?.status;
+      const isMaintenance =
+        status === 503 || err.response?.data?.maintenance === true;
+
+      if (isMaintenance) {
+        navigate('/maintenance');
+        throw new Error(
+          err.response?.data?.message ||
+            'Registration is disabled during maintenance.'
+        );
+      }
+
+      const message =
+        err.response?.data?.message || err.message || 'Registration failed';
       throw new Error(message);
     }
   };

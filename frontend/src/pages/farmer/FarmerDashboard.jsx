@@ -28,7 +28,7 @@ const FarmerDashboard = () => {
         ]);
         setStats(statsData);
         setRecentDeliveries(deliveriesData.slice(0, 5));
-        setAllDeliveries(deliveriesData);          // ← ADDED
+        setAllDeliveries(deliveriesData);
         setAnnouncements(announcementsData.slice(0, 3));
       } catch (err) {
         console.error(err);
@@ -42,9 +42,11 @@ const FarmerDashboard = () => {
 
   if (loading) {
     return (
-      <div className="text-center py-5">
-        <Spinner animation="border" variant="success" />
-        <p className="text-muted mt-2">Loading dashboard...</p>
+      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
+        <div className="text-center">
+          <Spinner animation="border" variant="success" />
+          <p className="text-muted mt-3 small">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
@@ -52,51 +54,63 @@ const FarmerDashboard = () => {
   if (error) return <Alert variant="danger">{error}</Alert>;
 
   return (
-    <Container fluid>
+    <Container fluid className="px-0">
       <PageHeader
         title={`Welcome, ${user?.name || 'Farmer'}`}
         subtitle="Here's your coffee delivery summary for this season"
-        action={<Badge bg="success" className="p-3">Season {stats?.season}</Badge>}
+        action={
+          <Badge
+            bg="dark"
+            className="fw-normal"
+            style={{ fontSize: '0.7rem', letterSpacing: '1px', padding: '8px 12px' }}
+          >
+            SEASON {stats?.season || '2026'}
+          </Badge>
+        }
       />
 
       {/* Stats Cards */}
-      <Row className="mb-4">
-        <Col md={3} sm={6} className="mb-3">
+      <Row className="g-3 mb-4">
+        <Col xs={6} lg={3}>
           <StatsCard
             title="Total Deliveries"
             value={formatWeight(stats.totalDeliveries)}
             subtitle="This season"
             color="success"
+            icon="bi-box-seam"
           />
         </Col>
-        <Col md={3} sm={6} className="mb-3">
+        <Col xs={6} lg={3}>
           <StatsCard
             title="Pending Payment"
             value={formatCurrency(stats.pendingPayment)}
             subtitle="Awaiting processing"
             color="info"
+            icon="bi-cash-stack"
           />
         </Col>
-        <Col md={3} sm={6} className="mb-3">
+        <Col xs={6} lg={3}>
           <StatsCard
             title="Advances Taken"
             value={formatCurrency(stats.advancesTaken)}
             subtitle="Total borrowed"
             color="warning"
+            icon="bi-cash-coin"
           />
         </Col>
-        <Col md={3} sm={6} className="mb-3">
+        <Col xs={6} lg={3}>
           <StatsCard
             title="Total Paid"
             value={formatCurrency(stats.totalPaid)}
             subtitle="Received to date"
             color="primary"
+            icon="bi-check-circle"
           />
         </Col>
       </Row>
 
-      {/* Delivery Chart — NEW */}
-      <Row className="mb-4">
+      {/* Delivery Chart */}
+      <Row className="g-3 mb-4">
         <Col lg={12}>
           <ChartWrapper title="My Delivery History" height={280}>
             <FarmerDeliveryChart deliveries={allDeliveries} />
@@ -104,43 +118,68 @@ const FarmerDashboard = () => {
         </Col>
       </Row>
 
-      <Row>
+      <Row className="g-3">
         {/* Recent Deliveries */}
-        <Col lg={7} className="mb-4">
-          <Card className="shadow-sm border-0 h-100">
-            <Card.Body>
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <h5 className="mb-0">📋 Recent Deliveries</h5>
-                <Link to="/farmer/deliveries" className="text-success text-decoration-none small fw-bold">
-                  View All →
-                </Link>
-              </div>
+        <Col lg={7}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Header
+              className="bg-white border-bottom d-flex justify-content-between align-items-center"
+              style={{ padding: '14px 20px' }}
+            >
+              <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>
+                Recent Deliveries
+              </span>
+              <Link
+                to="/farmer/deliveries"
+                className="text-success text-decoration-none small fw-semibold"
+              >
+                View All
+              </Link>
+            </Card.Header>
+            <Card.Body className="p-0">
               <div className="table-responsive">
-                <table className="table table-hover align-middle mb-0">
+                <table className="table table-hover align-middle mb-0" style={{ fontSize: '0.85rem' }}>
                   <thead className="table-light">
                     <tr>
-                      <th>Date</th>
-                      <th>Weight</th>
-                      <th>Receipt</th>
-                      <th>Status</th>
+                      {['Date', 'Weight', 'Receipt', 'Status'].map((label) => (
+                        <th
+                          key={label}
+                          className="text-uppercase text-muted fw-semibold border-bottom"
+                          style={{ fontSize: '0.68rem', letterSpacing: '0.5px', padding: '12px 16px' }}
+                        >
+                          {label}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {recentDeliveries.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="text-center text-muted py-3">
+                        <td colSpan={4} className="text-center text-muted py-4 small">
                           No deliveries recorded yet
                         </td>
                       </tr>
                     ) : (
                       recentDeliveries.map((d) => (
-                        <tr key={d.id}>
-                          <td>{formatDate(d.date)}</td>
-                          <td>{formatWeight(d.weight)}</td>
-                          <td><code>{d.receipt}</code></td>
-                          <td>
+                        <tr key={d.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                          <td style={{ padding: '12px 16px' }}>{formatDate(d.date)}</td>
+                          <td style={{ padding: '12px 16px' }}>{formatWeight(d.weight)}</td>
+                          <td style={{ padding: '12px 16px' }}>
+                            <code
+                              style={{
+                                color: '#1a4d2e',
+                                background: '#f0f4f1',
+                                padding: '2px 6px',
+                                borderRadius: '3px',
+                                fontSize: '0.82rem',
+                              }}
+                            >
+                              {d.receipt || d.receipt_no}
+                            </code>
+                          </td>
+                          <td style={{ padding: '12px 16px' }}>
                             <Badge bg={d.status === 'Processed' ? 'success' : 'warning'}>
-                              {d.status}
+                              {d.status || 'Processed'}
                             </Badge>
                           </td>
                         </tr>
@@ -154,26 +193,55 @@ const FarmerDashboard = () => {
         </Col>
 
         {/* Announcements */}
-        <Col lg={5} className="mb-4">
-          <Card className="shadow-sm border-0 h-100">
-            <Card.Body>
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <h5 className="mb-0">📢 Announcements</h5>
-                <Link to="/farmer/announcements" className="text-success text-decoration-none small fw-bold">
-                  View All →
-                </Link>
-              </div>
+        <Col lg={5}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Header
+              className="bg-white border-bottom d-flex justify-content-between align-items-center"
+              style={{ padding: '14px 20px' }}
+            >
+              <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>
+                Announcements
+              </span>
+              <Link
+                to="/farmer/announcements"
+                className="text-success text-decoration-none small fw-semibold"
+              >
+                View All
+              </Link>
+            </Card.Header>
+            <Card.Body style={{ padding: '20px' }}>
               {announcements.length === 0 ? (
-                <p className="text-muted small mb-0">No announcements yet</p>
+                <div className="text-center py-4">
+                  <i className="bi bi-megaphone text-muted" style={{ fontSize: '2rem' }}></i>
+                  <p className="text-muted mt-3 mb-0 small">No announcements yet</p>
+                </div>
               ) : (
                 announcements.map((a) => (
-                  <div key={a.id} className="border-bottom pb-3 mb-3">
-                    <div className="d-flex justify-content-between align-items-start">
-                      <h6 className="fw-bold mb-1">{a.title}</h6>
-                      {a.priority === 'high' && <Badge bg="danger">New</Badge>}
+                  <div
+                    key={a.id}
+                    className="border-bottom pb-3 mb-3"
+                    style={{ borderColor: '#f0f0f0 !important' }}
+                  >
+                    <div className="d-flex justify-content-between align-items-start gap-2 mb-1">
+                      <h6 className="fw-semibold mb-0" style={{ fontSize: '0.9rem' }}>
+                        {a.title}
+                      </h6>
+                      {a.priority === 'high' && (
+                        <Badge
+                          bg="danger"
+                          className="fw-normal"
+                          style={{ fontSize: '0.6rem', letterSpacing: '0.5px', padding: '3px 6px' }}
+                        >
+                          NEW
+                        </Badge>
+                      )}
                     </div>
-                    <small className="text-muted d-block mb-1">{formatDate(a.date)}</small>
-                    <p className="mb-0 small">{a.content}</p>
+                    <small className="text-muted d-block mb-2" style={{ fontSize: '0.72rem' }}>
+                      {formatDate(a.date)} · {a.author}
+                    </small>
+                    <p className="mb-0" style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
+                      {a.content}
+                    </p>
                   </div>
                 ))
               )}

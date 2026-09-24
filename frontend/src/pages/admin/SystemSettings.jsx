@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Container, Card, Form, Button, Spinner, Alert, Row, Col } from 'react-bootstrap';
+import {
+  Container, Card, Form, Button, Spinner, Alert, Row, Col, Badge, Modal,
+} from 'react-bootstrap';
 import { adminApi } from '../../api/adminApi';
 import PageHeader from '../../components/common/PageHeader';
 import { toast } from 'react-toastify';
@@ -9,6 +11,7 @@ const SystemSettings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showMaintenanceConfirm, setShowMaintenanceConfirm] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -28,6 +31,24 @@ const SystemSettings = () => {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setSettings({ ...settings, [name]: type === 'checkbox' ? checked : value });
+  };
+
+  // Confirmation before turning maintenance ON
+  const handleMaintenanceToggle = (e) => {
+    const turningOn = e.target.checked;
+    if (turningOn && !settings.maintenanceMode) {
+      // Intercept — show confirmation modal
+      setShowMaintenanceConfirm(true);
+    } else {
+      // Turning off — allow directly
+      setSettings({ ...settings, maintenanceMode: false });
+    }
+  };
+
+  const confirmMaintenanceOn = () => {
+    setSettings({ ...settings, maintenanceMode: true });
+    setShowMaintenanceConfirm(false);
+    toast.warning('Maintenance mode enabled. All non-admin users will be blocked.');
   };
 
   const handleSubmit = async (e) => {
@@ -57,6 +78,8 @@ const SystemSettings = () => {
 
   if (error) return <Alert variant="danger">{error}</Alert>;
 
+  const isMaintenanceActive = settings.maintenanceMode;
+
   return (
     <Container fluid className="px-0">
       <PageHeader
@@ -74,9 +97,7 @@ const SystemSettings = () => {
               </Card.Header>
               <Card.Body style={{ padding: '20px' }}>
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Rate per Kg (KES)
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Rate per Kg (KES)</Form.Label>
                   <Form.Control
                     type="number"
                     name="ratePerKg"
@@ -90,11 +111,8 @@ const SystemSettings = () => {
                   </Form.Text>
                 </Form.Group>
 
-                {/* ⭐ NEW — Advance Rate per Kg */}
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Advance Rate per Kg (KES)
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Advance Rate per Kg (KES)</Form.Label>
                   <Form.Control
                     type="number"
                     name="advanceRatePerKg"
@@ -104,14 +122,12 @@ const SystemSettings = () => {
                     style={{ fontSize: '0.9rem' }}
                   />
                   <Form.Text className="text-muted" style={{ fontSize: '0.72rem' }}>
-                    Maximum advance a farmer can receive per kg delivered (e.g., 30)
+                    Maximum advance a farmer can receive per kg delivered
                   </Form.Text>
                 </Form.Group>
 
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Cooperative Fee (KES/year)
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Cooperative Fee (KES/year)</Form.Label>
                   <Form.Control
                     type="number"
                     name="cooperativeFee"
@@ -126,9 +142,7 @@ const SystemSettings = () => {
                 </Form.Group>
 
                 <Form.Group className="mb-0">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Loan Interest Rate (%)
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Loan Interest Rate (%)</Form.Label>
                   <Form.Control
                     type="number"
                     name="loanInterestRate"
@@ -154,9 +168,7 @@ const SystemSettings = () => {
               </Card.Header>
               <Card.Body style={{ padding: '20px' }}>
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Current Season
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Current Season</Form.Label>
                   <Form.Control
                     name="currentSeason"
                     value={settings.currentSeason}
@@ -167,9 +179,7 @@ const SystemSettings = () => {
                 </Form.Group>
 
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Season Start Date
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Season Start Date</Form.Label>
                   <Form.Control
                     type="date"
                     name="seasonStart"
@@ -180,9 +190,7 @@ const SystemSettings = () => {
                 </Form.Group>
 
                 <Form.Group className="mb-0">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Season End Date
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Season End Date</Form.Label>
                   <Form.Control
                     type="date"
                     name="seasonEnd"
@@ -231,25 +239,100 @@ const SystemSettings = () => {
             </Card>
           </Col>
 
-          {/* System Maintenance */}
+          {/* System Maintenance — IMPROVED */}
           <Col lg={6}>
             <Card className="border-0 shadow-sm h-100">
-              <Card.Header className="bg-white border-bottom" style={{ padding: '14px 20px' }}>
-                <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>System Maintenance</span>
+              <Card.Header
+                className="bg-white border-bottom d-flex justify-content-between align-items-center"
+                style={{ padding: '14px 20px' }}
+              >
+                <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>
+                  System Maintenance
+                </span>
+                <Badge
+                  bg={isMaintenanceActive ? 'danger' : 'success'}
+                  className="fw-normal"
+                  style={{ fontSize: '0.65rem', letterSpacing: '0.5px', padding: '4px 8px' }}
+                >
+                  {isMaintenanceActive ? 'MAINTENANCE ACTIVE' : 'SYSTEM ONLINE'}
+                </Badge>
               </Card.Header>
               <Card.Body style={{ padding: '20px' }}>
                 <Form.Check
                   type="switch"
                   id="maintenance-mode"
                   name="maintenanceMode"
-                  label="Enable Maintenance Mode"
+                  label={
+                    <span className="fw-semibold" style={{ fontSize: '0.875rem' }}>
+                      Enable Maintenance Mode
+                    </span>
+                  }
                   checked={settings.maintenanceMode}
-                  onChange={handleChange}
+                  onChange={handleMaintenanceToggle}
                   className="mb-3"
                 />
-                <Alert variant="warning" className="mb-0 small">
-                  When enabled, only administrators can access the system. All other users will see a maintenance page.
-                </Alert>
+
+                {isMaintenanceActive && (
+                  <Alert variant="warning" className="py-2 px-3 small mb-3">
+                    <strong>Active:</strong> Only administrators can access the system.
+                    All other users see the maintenance page.
+                  </Alert>
+                )}
+
+                {/* Maintenance Message */}
+                <Form.Group className="mb-3">
+                  <Form.Label className="small fw-semibold text-secondary">
+                    Maintenance Message
+                  </Form.Label>
+                  <Form.Control
+                    as="textarea"
+                    rows={3}
+                    name="maintenanceMessage"
+                    value={settings.maintenanceMessage || ''}
+                    onChange={handleChange}
+                    placeholder="Message displayed to users during maintenance"
+                    maxLength={300}
+                    style={{ fontSize: '0.85rem' }}
+                  />
+                  <Form.Text className="text-muted" style={{ fontSize: '0.72rem' }}>
+                    {300 - (settings.maintenanceMessage?.length || 0)} characters remaining
+                  </Form.Text>
+                </Form.Group>
+
+                {/* Scheduled Maintenance */}
+                <Row className="g-2">
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label className="small fw-semibold text-secondary">
+                        Scheduled Start
+                      </Form.Label>
+                      <Form.Control
+                        type="datetime-local"
+                        name="maintenanceStart"
+                        value={settings.maintenanceStart || ''}
+                        onChange={handleChange}
+                        style={{ fontSize: '0.85rem' }}
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group>
+                      <Form.Label className="small fw-semibold text-secondary">
+                        Scheduled End
+                      </Form.Label>
+                      <Form.Control
+                        type="datetime-local"
+                        name="maintenanceEnd"
+                        value={settings.maintenanceEnd || ''}
+                        onChange={handleChange}
+                        style={{ fontSize: '0.85rem' }}
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+                <Form.Text className="text-muted" style={{ fontSize: '0.72rem' }}>
+                  Optional — schedule when maintenance should begin and end.
+                </Form.Text>
               </Card.Body>
             </Card>
           </Col>
@@ -284,6 +367,46 @@ const SystemSettings = () => {
           </Button>
         </div>
       </Form>
+
+      {/* Confirmation Modal */}
+      <Modal
+        show={showMaintenanceConfirm}
+        onHide={() => setShowMaintenanceConfirm(false)}
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: '1.05rem', fontWeight: 600 }}>
+            Enable Maintenance Mode?
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="warning" className="mb-3 small">
+            <strong>Warning:</strong> This will block all non-administrator users
+            from accessing the system.
+          </Alert>
+          <p className="small mb-0">
+            Users will see the following message:
+          </p>
+          <div
+            className="border rounded p-3 mt-2 small"
+            style={{ background: '#f8f9fa', fontStyle: 'italic' }}
+          >
+            "{settings.maintenanceMessage}"
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="outline-secondary"
+            size="sm"
+            onClick={() => setShowMaintenanceConfirm(false)}
+          >
+            Cancel
+          </Button>
+          <Button variant="danger" size="sm" onClick={confirmMaintenanceOn}>
+            Yes, Enable Maintenance
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 };
