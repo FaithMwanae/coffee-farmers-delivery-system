@@ -4,6 +4,9 @@ import { ToastContainer } from 'react-toastify';
 import AuthLayout from './layouts/AuthLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 
+// Public pages
+import VerifyReceipt from './pages/public/VerifyReceipt';
+
 // Auth pages
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
@@ -60,6 +63,9 @@ function App() {
 
         {/* MAINTENANCE — standalone, no layout */}
         <Route path="/maintenance" element={<Maintenance />} />
+
+        {/* ⭐ RECEIPT VERIFICATION — public, no auth needed */}
+        <Route path="/verify/:receipt" element={<VerifyReceipt />} />
 
         {/* ============ PROTECTED ROUTES ============ */}
         <Route element={<DashboardLayout />}>

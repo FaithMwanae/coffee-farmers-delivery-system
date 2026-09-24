@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Container, Card, Form, Button, Alert, Row, Col, Spinner, Badge } from 'react-bootstrap';
+import { QRCodeSVG } from 'qrcode.react';
 import { staffApi } from '../../api/staffApi';
 import PageHeader from '../../components/common/PageHeader';
 import FarmerSearchSelect from '../../components/forms/FarmerSearchSelect';
@@ -265,6 +266,20 @@ const RecordDelivery = () => {
                     <div className="text-center">
                       <small className="text-muted">Thank you for your delivery</small>
                     </div>
+
+                    {/* ⭐ QR CODE — NEW */}
+                    <div className="text-center mt-3">
+                      <QRCodeSVG
+                        value={`${window.location.origin}/verify/${lastReceipt.receipt || lastReceipt.receipt_no}`}
+                        size={100}
+                        level="M"
+                        bgColor="#ffffff"
+                        fgColor="#1a4d2e"
+                      />
+                      <div className="text-muted" style={{ fontSize: '0.65rem', marginTop: '4px' }}>
+                        Scan to verify
+                      </div>
+                    </div>
                   </div>
 
                   {/* Cumulative Badge — DARK for uniformity */}
@@ -296,4 +311,4 @@ const RecordDelivery = () => {
   );
 };
 
-export default RecordDelivery;
+export default RecordDelivery;npm install qrcode.react

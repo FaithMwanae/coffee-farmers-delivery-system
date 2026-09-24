@@ -12,6 +12,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import announcementRoutes from './routes/announcementRoutes.js';
 import ceoRoutes from './routes/ceoRoutes.js';
 import formsRoutes from './routes/formsRoutes.js';
+import verifyRoutes from './routes/verifyRoutes.js';           // ⭐ NEW
 
 import { initEmailService } from './config/email.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
@@ -32,7 +33,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// ⭐ Serve uploaded files (forms, avatars, etc.)
+// Serve uploaded files (forms, avatars, etc.)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ============================================
@@ -51,6 +52,7 @@ app.get('/', (req, res) => {
       ceo: '/api/ceo',
       announcements: '/api/announcements',
       forms: '/api/forms',
+      verify: '/api/verify',           // ⭐ NEW
       uploads: '/uploads',
     },
   });
@@ -67,6 +69,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/ceo', ceoRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/forms', formsRoutes);
+app.use('/api/verify', verifyRoutes);       // ⭐ NEW
 
 // ============================================
 // ERROR HANDLING
