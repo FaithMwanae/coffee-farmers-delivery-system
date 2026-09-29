@@ -19,7 +19,7 @@ import Maintenance from './pages/maintenance/Maintenance';
 // Account pages
 import BecomeFarmer from './pages/account/BecomeFarmer';
 
-// Farmer pages
+// Farmer pagess
 import FarmerDashboard from './pages/farmer/FarmerDashboard';
 import DeliveryHistory from './pages/farmer/DeliveryHistory';
 import TransactionHistory from './pages/farmer/TransactionHistory';
