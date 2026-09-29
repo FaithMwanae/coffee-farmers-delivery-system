@@ -311,4 +311,4 @@ const RecordDelivery = () => {
   );
 };
 
-export default RecordDelivery;npm install qrcode.react
+export default RecordDelivery;

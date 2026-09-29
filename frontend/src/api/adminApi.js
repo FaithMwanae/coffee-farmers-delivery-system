@@ -23,6 +23,12 @@ export const adminApi = {
     return data;
   },
 
+  // Analytics ⭐ NEW — Module B
+  getAnalytics: async () => {
+    const { data } = await client.get('/admin/analytics');
+    return data;
+  },
+
   // Users
   getAllUsers: async () => {
     const { data } = await client.get('/admin/users');

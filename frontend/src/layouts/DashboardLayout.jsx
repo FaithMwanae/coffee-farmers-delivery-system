@@ -81,6 +81,7 @@ const DashboardLayout = () => {
           title: 'System',
           items: [
             { label: 'Dashboard', route: '/admin/dashboard', icon: 'bi-speedometer2' },
+            { label: 'Analytics', route: '/admin/analytics', icon: 'bi-bar-chart' },
             { label: 'User Management', route: '/admin/users', icon: 'bi-people' },
             { label: 'System Settings', route: '/admin/settings', icon: 'bi-gear' },
             { label: 'Audit Logs', route: '/admin/audit-logs', icon: 'bi-clipboard-data' },

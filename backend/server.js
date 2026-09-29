@@ -12,7 +12,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import announcementRoutes from './routes/announcementRoutes.js';
 import ceoRoutes from './routes/ceoRoutes.js';
 import formsRoutes from './routes/formsRoutes.js';
-import verifyRoutes from './routes/verifyRoutes.js';           // ⭐ NEW
+import verifyRoutes from './routes/verifyRoutes.js';
 
 import { initEmailService } from './config/email.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
@@ -28,7 +28,35 @@ const PORT = process.env.PORT || 5000;
 // ============================================
 // MIDDLEWARE
 // ============================================
-app.use(cors());
+// CORS — allow local dev + any Vercel + any Render URL
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:10000',
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (curl, Postman, mobile apps)
+      if (!origin) return callback(null, true);
+
+      // Allow explicit local origins
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+
+      // Allow any Vercel preview/production URL
+      if (/\.vercel\.app$/.test(origin)) return callback(null, true);
+
+      // Allow any Render URL (backend calling itself, etc.)
+      if (/\.onrender\.com$/.test(origin)) return callback(null, true);
+
+      // Reject everything else
+      callback(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
@@ -52,7 +80,7 @@ app.get('/', (req, res) => {
       ceo: '/api/ceo',
       announcements: '/api/announcements',
       forms: '/api/forms',
-      verify: '/api/verify',           // ⭐ NEW
+      verify: '/api/verify',
       uploads: '/uploads',
     },
   });
@@ -69,7 +97,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/ceo', ceoRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/forms', formsRoutes);
-app.use('/api/verify', verifyRoutes);       // ⭐ NEW
+app.use('/api/verify', verifyRoutes);
 
 // ============================================
 // ERROR HANDLING
@@ -81,7 +109,6 @@ app.use(errorHandler);
 // START SERVER
 // ============================================
 const startServer = async () => {
-  // Initialize email service (won't crash if it fails)
   try {
     await initEmailService();
   } catch (err) {

@@ -406,6 +406,8 @@ export const getAllTransactions = async (req, res) => {
       amount: Number(t.amount),
       description: t.description,
       status: t.status,
+      paymentMethod: t.payment_method,
+      reference: t.reference,
     }));
 
     res.json(mapped);
@@ -534,26 +536,34 @@ export const recordTransaction = async (req, res) => {
 
 // ============================================
 // GET /api/staff/payments
-// Only counts Completed transactions
+// Computes payment schedule + release status per farmer
 // ============================================
 export const getPaymentSchedule = async (req, res) => {
   try {
     const settingsRes = await pool.query('SELECT rate_per_kg FROM settings LIMIT 1');
     const rate = Number(settingsRes.rows[0]?.rate_per_kg || 80);
+    const currentYear = new Date().getFullYear();
 
     const result = await pool.query(
       `SELECT
         f.id,
         f.member_no,
         f.name AS farmer_name,
+        f.phone,
         f.total_delivered,
         COALESCE(SUM(CASE WHEN t.type = 'Advance' AND t.status = 'Completed' THEN t.amount END), 0) AS advances,
         COALESCE(SUM(CASE WHEN t.type = 'Deduction' AND t.status = 'Completed' THEN t.amount END), 0) AS deductions,
-        COALESCE(SUM(CASE WHEN t.type = 'Payment' AND t.status = 'Completed' THEN t.amount END), 0) AS payments
+        COALESCE(SUM(CASE WHEN t.type = 'Payment' AND t.status = 'Completed' THEN t.amount END), 0) AS payments,
+        COALESCE(SUM(
+          CASE WHEN t.type = 'Payment' AND t.status = 'Completed'
+                    AND EXTRACT(YEAR FROM t.date) = $1
+               THEN t.amount END
+        ), 0) AS paid_this_year
        FROM farmers f
        LEFT JOIN transactions t ON t.farmer_id = f.id
        GROUP BY f.id
-       ORDER BY f.member_no`
+       ORDER BY f.member_no`,
+      [currentYear]
     );
 
     const schedule = result.rows.map((row) => {
@@ -561,12 +571,15 @@ export const getPaymentSchedule = async (req, res) => {
       const advances = Number(row.advances);
       const deductions = Number(row.deductions);
       const payments = Number(row.payments);
+      const paidThisYear = Number(row.paid_this_year);
       const net = gross - advances - deductions - payments;
 
       return {
         id: row.id,
+        farmerId: row.id,
         memberNo: row.member_no,
         farmerName: row.farmer_name,
+        phone: row.phone,
         totalWeight: Number(row.total_delivered),
         rate,
         gross,
@@ -574,7 +587,8 @@ export const getPaymentSchedule = async (req, res) => {
         deductions,
         payments,
         net,
-        status: 'Pending',
+        status: paidThisYear > 0 ? 'Released' : 'Pending',
+        season: currentYear,
       };
     });
 
@@ -582,6 +596,114 @@ export const getPaymentSchedule = async (req, res) => {
   } catch (error) {
     console.error('Payment schedule error:', error);
     res.status(500).json({ message: 'Server error loading payment schedule.' });
+  }
+};
+
+// ============================================
+// POST /api/staff/payments/release/:farmerId
+// Records a Completed Payment transaction for a farmer
+// ============================================
+export const releasePayment = async (req, res) => {
+  const farmerId = Number(req.params.farmerId);
+  const { amount, method, reference, season } = req.body;
+
+  if (!farmerId || !amount || !method) {
+    return res
+      .status(400)
+      .json({ message: 'Farmer, amount, and payment method are required.' });
+  }
+
+  if (!['M-Pesa', 'Bank Transfer', 'Cash'].includes(method)) {
+    return res.status(400).json({ message: 'Invalid payment method.' });
+  }
+
+  const seasonYear = Number(season) || new Date().getFullYear();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const farmerRes = await client.query(
+      'SELECT id, name, member_no FROM farmers WHERE id = $1',
+      [farmerId]
+    );
+    if (farmerRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Farmer not found.' });
+    }
+    const farmer = farmerRes.rows[0];
+
+    // Prevent double-release for the same season
+    const existing = await client.query(
+      `SELECT id FROM transactions
+       WHERE farmer_id = $1
+         AND type = 'Payment'
+         AND status = 'Completed'
+         AND EXTRACT(YEAR FROM date) = $2
+       LIMIT 1`,
+      [farmerId, seasonYear]
+    );
+
+    if (existing.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res
+        .status(409)
+        .json({ message: `Payment already released for season ${seasonYear}.` });
+    }
+
+    const result = await client.query(
+      `INSERT INTO transactions
+         (farmer_id, type, amount, description, status, payment_method, reference)
+       VALUES ($1, 'Payment', $2, $3, 'Completed', $4, $5)
+       RETURNING *`,
+      [
+        farmerId,
+        amount,
+        `Season ${seasonYear} payment`,
+        method,
+        reference ? String(reference).trim() : null,
+      ]
+    );
+
+    const tx = result.rows[0];
+
+    await client.query(
+      `INSERT INTO audit_logs (user_name, role, action, details, ip)
+       VALUES ($1, $2, 'RELEASE_PAYMENT', $3, $4)`,
+      [
+        req.user.name || req.user.email,
+        req.user.role,
+        `Released KES ${Number(amount).toLocaleString()} to ${farmer.name} (${farmer.member_no}) via ${method}${
+          reference ? ` — Ref: ${reference}` : ''
+        }`,
+        req.ip || '127.0.0.1',
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      success: true,
+      message: `Payment released to ${farmer.name}`,
+      transaction: {
+        id: tx.id,
+        farmerId: tx.farmer_id,
+        farmerName: farmer.name,
+        memberNo: farmer.member_no,
+        amount: Number(tx.amount),
+        type: tx.type,
+        status: tx.status,
+        paymentMethod: tx.payment_method,
+        reference: tx.reference,
+        date: tx.date,
+      },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Release payment error:', error);
+    res.status(500).json({ message: 'Server error releasing payment.' });
+  } finally {
+    client.release();
   }
 };
 

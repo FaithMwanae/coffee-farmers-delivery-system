@@ -41,6 +41,7 @@ import AdminDashboard from './pages/admin/AdminDashboard';
 import UserManagement from './pages/admin/UserManagement';
 import SystemSettings from './pages/admin/SystemSettings';
 import AuditLogs from './pages/admin/AuditLogs';
+import Analytics from './pages/admin/Analytics';
 
 // CEO pages
 import CeoDashboard from './pages/ceo/CeoDashboard';
@@ -195,6 +196,14 @@ function App() {
             }
           />
           <Route
+            path="/admin/analytics"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'ceo']}>
+                <Analytics />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/users"
             element={
               <ProtectedRoute allowedRoles={['admin']}>
@@ -240,7 +249,7 @@ function App() {
             path="/ceo/analytics"
             element={
               <ProtectedRoute allowedRoles={['ceo', 'admin']}>
-                <StaffReports />
+                <Analytics />
               </ProtectedRoute>
             }
           />

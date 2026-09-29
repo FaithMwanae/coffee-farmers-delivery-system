@@ -54,12 +54,21 @@ export const staffApi = {
     return data;
   },
 
+  releasePayment: async (farmerId, payload) => {
+    const { data } = await client.post(
+      `/staff/payments/release/${farmerId}`,
+      payload
+    );
+    return data;
+  },
+
   // Reports
   getReportSummary: async () => {
     const { data } = await client.get('/staff/reports/summary');
     return data;
   },
-    // Charts
+
+  // Charts
   getChartData: async () => {
     const { data } = await client.get('/staff/charts');
     return data;

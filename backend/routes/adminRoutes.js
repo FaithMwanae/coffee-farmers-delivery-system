@@ -1,7 +1,9 @@
 import express from 'express';
-import { getChartData, getDashboard, getRecentActivity, getRoleDistribution,
+import {
+  getChartData, getDashboard, getRecentActivity, getRoleDistribution,
   getAllUsers, createUser, updateUser, toggleUserStatus,
   getSettings, updateSettings, getAuditLogs,
+  getAnalytics,
 } from '../controllers/adminController.js';
 import { authenticate } from '../middleware/auth.js';
 import { allowRoles } from '../middleware/roleCheck.js';
@@ -11,12 +13,18 @@ const router = express.Router();
 
 // All routes require authentication + admin role
 router.use(authenticate);
-router.use(allowRoles('admin' ,'ceo'));
+router.use(allowRoles('admin', 'ceo'));
+
+// Charts
 router.get('/charts', getChartData);
+
 // Dashboard
 router.get('/dashboard', getDashboard);
 router.get('/activity', getRecentActivity);
 router.get('/roles', getRoleDistribution);
+
+// Analytics ⭐ NEW — Module B
+router.get('/analytics', getAnalytics);
 
 // User Management
 router.get('/users', getAllUsers);

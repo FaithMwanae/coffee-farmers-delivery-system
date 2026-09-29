@@ -406,3 +406,100 @@ export const getChartData = async (req, res) => {
     res.status(500).json({ message: 'Server error.' });
   }
 };
+
+// ============================================
+// GET /api/admin/analytics  ⭐ NEW — Module B
+// Advanced analytics for the admin dashboard
+// ============================================
+export const getAnalytics = async (req, res) => {
+  try {
+    // Top 5 farmers by delivered weight
+    const topFarmers = await pool.query(`
+      SELECT name, member_no, total_delivered AS weight
+      FROM farmers
+      ORDER BY total_delivered DESC
+      LIMIT 5
+    `);
+
+    // Monthly deliveries (last 12 months)
+    const monthlyDeliveries = await pool.query(`
+      SELECT
+        TO_CHAR(date, 'Mon YYYY') AS month,
+        SUM(weight) AS weight,
+        COUNT(*) AS deliveries
+      FROM deliveries
+      WHERE date >= NOW() - INTERVAL '12 months'
+      GROUP BY TO_CHAR(date, 'Mon YYYY'), DATE_TRUNC('month', date)
+      ORDER BY DATE_TRUNC('month', date)
+    `);
+
+    // Payment vs Advances vs Deductions (all time)
+    const totalsRes = await pool.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN type = 'Payment' AND status = 'Completed' THEN amount END), 0) AS payments,
+        COALESCE(SUM(CASE WHEN type = 'Advance' AND status = 'Completed' THEN amount END), 0) AS advances,
+        COALESCE(SUM(CASE WHEN type = 'Deduction' AND status = 'Completed' THEN amount END), 0) AS deductions
+      FROM transactions
+    `);
+
+    // Quality distribution
+    const qualityDist = await pool.query(`
+      SELECT quality, COUNT(*) AS count
+      FROM deliveries
+      GROUP BY quality
+      ORDER BY count DESC
+    `);
+
+    // Average / max / min delivery per farmer
+    const avgRes = await pool.query(`
+      SELECT
+        COALESCE(AVG(total_delivered), 0) AS avg_weight,
+        COALESCE(MAX(total_delivered), 0) AS max_weight,
+        COALESCE(MIN(total_delivered), 0) AS min_weight
+      FROM farmers
+    `);
+
+    // Season info
+    const seasonRes = await pool.query(`
+      SELECT season_start, season_end, current_season
+      FROM settings LIMIT 1
+    `);
+
+    const season = seasonRes.rows[0] || {};
+
+    res.json({
+      topFarmers: topFarmers.rows.map((r) => ({
+        name: r.name,
+        memberNo: r.member_no,
+        weight: Number(r.weight),
+      })),
+      monthlyDeliveries: monthlyDeliveries.rows.map((r) => ({
+        month: r.month,
+        weight: Number(r.weight),
+        deliveries: Number(r.deliveries),
+      })),
+      financial: {
+        payments: Number(totalsRes.rows[0].payments),
+        advances: Number(totalsRes.rows[0].advances),
+        deductions: Number(totalsRes.rows[0].deductions),
+      },
+      qualityDistribution: qualityDist.rows.map((r) => ({
+        quality: r.quality || 'Unknown',
+        count: Number(r.count),
+      })),
+      averages: {
+        avgWeight: Number(avgRes.rows[0].avg_weight),
+        maxWeight: Number(avgRes.rows[0].max_weight),
+        minWeight: Number(avgRes.rows[0].min_weight),
+      },
+      season: {
+        start: season.season_start,
+        end: season.season_end,
+        current: season.current_season,
+      },
+    });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
