@@ -14,7 +14,7 @@ import ForgotPassword from './pages/auth/ForgotPassword';
 import ResetPassword from './pages/auth/ResetPassword';
 
 // Maintenance page
-import Maintenance from './pages/maintenance/Maintenance';
+import Maintenance from './pages/maintenance/maintenance';
 
 // Account pages
 import BecomeFarmer from './pages/account/BecomeFarmer';
