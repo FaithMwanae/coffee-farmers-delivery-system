@@ -253,3 +253,60 @@ export const enableFarmerProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error.' });
   }
 };
+// ============================================
+// GET /api/farmer/advances/eligibility
+// Returns how much the logged-in farmer can request as an advance
+// ============================================
+export const getAdvanceEligibility = async (req, res) => {
+  try {
+    const farmer = await getFarmerForUser(req.user.id);
+    if (!farmer) {
+      return res.status(404).json({ message: 'Farmer profile not found.' });
+    }
+
+    // Get advance rate from settings (default 30)
+    const settingsRes = await pool.query(
+      'SELECT advance_rate_per_kg FROM settings LIMIT 1'
+    );
+    const rate = Number(settingsRes.rows[0]?.advance_rate_per_kg || 30);
+
+    // Sum all advances that count against eligibility
+    // (Pending + Completed + Requested all reserve against the limit)
+    const advanceRes = await pool.query(
+      `SELECT
+         COALESCE(SUM(CASE WHEN status IN ('Requested','Pending','Completed') THEN amount END), 0) AS total,
+         COALESCE(SUM(CASE WHEN status = 'Completed' THEN amount END), 0) AS disbursed,
+         COALESCE(SUM(CASE WHEN status = 'Pending' THEN amount END), 0) AS pending,
+         COALESCE(SUM(CASE WHEN status = 'Requested' THEN amount END), 0) AS requested
+       FROM transactions
+       WHERE farmer_id = $1 AND type = 'Advance'`,
+      [farmer.id]
+    );
+
+    const totalAdvanced = Number(advanceRes.rows[0].total);
+    const disbursed = Number(advanceRes.rows[0].disbursed);
+    const pending = Number(advanceRes.rows[0].pending);
+    const requested = Number(advanceRes.rows[0].requested);
+
+    const totalDelivered = Number(farmer.total_delivered || 0);
+    const eligible = totalDelivered * rate;
+    const available = Math.max(0, eligible - totalAdvanced);
+
+    res.json({
+      farmerId: farmer.id,
+      farmerName: farmer.name,
+      memberNo: farmer.member_no,
+      totalDelivered,
+      rate,
+      eligible,             // total lifetime capacity
+      totalAdvanced,        // everything reserved
+      disbursed,            // already received
+      pending,              // approved, awaiting disbursement
+      requested,            // awaiting CEO approval
+      available,            // what farmer can still request
+    });
+  } catch (error) {
+    console.error('Advance eligibility error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
