@@ -40,7 +40,10 @@ const StaffDashboard = () => {
 
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '60vh' }}>
+      <div
+        className="d-flex justify-content-center align-items-center"
+        style={{ minHeight: '60vh' }}
+      >
         <div className="text-center">
           <Spinner animation="border" variant="success" />
           <p className="text-muted mt-3 small">Loading dashboard...</p>
@@ -56,19 +59,22 @@ const StaffDashboard = () => {
     weight: w.weight,
   }));
 
+  const firstName = (user?.name || 'Staff').split(' ')[0];
+
   return (
     <Container fluid className="px-0">
       <PageHeader
-        title={`Welcome, ${user?.name || 'Staff'}`}
+        title={`Welcome back, ${firstName}`}
         subtitle="Today's operational summary"
         action={
           <Button as={Link} to="/staff/record-delivery" variant="success" size="sm">
+            <i className="bi bi-plus-lg me-1"></i>
             Record Delivery
           </Button>
         }
       />
 
-      {/* Stats */}
+      {/* ============ Stats ============ */}
       <Row className="g-3 mb-4">
         <Col xs={6} lg={3}>
           <StatsCard
@@ -108,7 +114,7 @@ const StaffDashboard = () => {
         </Col>
       </Row>
 
-      {/* Weekly Intake Chart — full width, no icon */}
+      {/* ============ Weekly Intake Chart ============ */}
       <Row className="g-3 mb-4">
         <Col lg={12}>
           <ChartWrapper title="Weekly Intake" height={280}>
@@ -122,29 +128,28 @@ const StaffDashboard = () => {
       </Row>
 
       <Row className="g-3">
-        {/* Recent Deliveries */}
+        {/* ============ Recent Deliveries ============ */}
         <Col lg={8}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white border-bottom d-flex justify-content-between align-items-center" style={{ padding: '14px 20px' }}>
-              <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>Recent Deliveries</span>
-              <Link to="/staff/deliveries" className="text-success text-decoration-none small fw-semibold">
+          <Card className="h-100">
+            <Card.Header className="d-flex justify-content-between align-items-center">
+              <span>Recent Deliveries</span>
+              <Link
+                to="/staff/deliveries"
+                className="text-success text-decoration-none small fw-semibold"
+              >
                 View All
+                <i className="bi bi-arrow-right ms-1"></i>
               </Link>
             </Card.Header>
             <Card.Body className="p-0">
               <div className="table-responsive">
-                <table className="table table-hover align-middle mb-0" style={{ fontSize: '0.85rem' }}>
-                  <thead className="table-light">
+                <table className="table table-hover align-middle mb-0">
+                  <thead>
                     <tr>
-                      {['Receipt', 'Farmer', 'Weight', 'Date'].map((label) => (
-                        <th
-                          key={label}
-                          className="text-uppercase text-muted fw-semibold border-bottom"
-                          style={{ fontSize: '0.68rem', letterSpacing: '0.5px', padding: '12px 16px' }}
-                        >
-                          {label}
-                        </th>
-                      ))}
+                      <th>Receipt</th>
+                      <th>Farmer</th>
+                      <th className="text-end">Weight</th>
+                      <th>Date</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -156,23 +161,19 @@ const StaffDashboard = () => {
                       </tr>
                     ) : (
                       recent.map((d) => (
-                        <tr key={d.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                          <td style={{ padding: '12px 16px' }}>
-                            <code
-                              style={{
-                                color: '#1a4d2e',
-                                background: '#f0f4f1',
-                                padding: '2px 6px',
-                                borderRadius: '3px',
-                                fontSize: '0.82rem',
-                              }}
-                            >
-                              {d.receipt_no || d.receipt}
-                            </code>
+                        <tr key={d.id}>
+                          <td>
+                            <code>{d.receipt_no || d.receipt}</code>
                           </td>
-                          <td style={{ padding: '12px 16px' }}>{d.farmer_name || d.farmerName}</td>
-                          <td style={{ padding: '12px 16px' }}>{formatWeight(d.weight)}</td>
-                          <td style={{ padding: '12px 16px' }}>{formatDate(d.date)}</td>
+                          <td className="fw-semibold">
+                            {d.farmer_name || d.farmerName}
+                          </td>
+                          <td className="text-end num">
+                            {formatWeight(d.weight)}
+                          </td>
+                          <td className="text-muted">
+                            {formatDate(d.date)}
+                          </td>
                         </tr>
                       ))
                     )}
@@ -183,27 +184,57 @@ const StaffDashboard = () => {
           </Card>
         </Col>
 
-        {/* Quick Actions */}
+        {/* ============ Quick Actions ============ */}
         <Col lg={4}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white border-bottom" style={{ padding: '14px 20px' }}>
-              <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>Quick Actions</span>
+          <Card className="h-100">
+            <Card.Header>
+              <span>Quick Actions</span>
             </Card.Header>
-            <Card.Body>
+            <Card.Body className="p-3">
               <div className="d-grid gap-2">
-                <Button as={Link} to="/staff/record-delivery" variant="success" className="text-start py-2" style={{ fontSize: '0.85rem' }}>
+                <Button
+                  as={Link}
+                  to="/staff/record-delivery"
+                  variant="success"
+                  className="text-start d-flex align-items-center gap-2"
+                >
+                  <i className="bi bi-box-seam"></i>
                   Record New Delivery
                 </Button>
-                <Button as={Link} to="/staff/farmers" variant="primary" className="text-start py-2" style={{ fontSize: '0.85rem' }}>
+                <Button
+                  as={Link}
+                  to="/staff/farmers"
+                  variant="outline-success"
+                  className="text-start d-flex align-items-center gap-2"
+                >
+                  <i className="bi bi-person-plus"></i>
                   Register New Farmer
                 </Button>
-                <Button as={Link} to="/staff/transactions" variant="warning" className="text-start py-2" style={{ fontSize: '0.85rem', color: '#fff' }}>
+                <Button
+                  as={Link}
+                  to="/staff/transactions"
+                  variant="outline-secondary"
+                  className="text-start d-flex align-items-center gap-2"
+                >
+                  <i className="bi bi-arrow-left-right"></i>
                   Record Transaction
                 </Button>
-                <Button as={Link} to="/staff/payments" variant="info" className="text-start py-2" style={{ fontSize: '0.85rem', color: '#fff' }}>
+                <Button
+                  as={Link}
+                  to="/staff/payments"
+                  variant="outline-secondary"
+                  className="text-start d-flex align-items-center gap-2"
+                >
+                  <i className="bi bi-cash-stack"></i>
                   Payment Schedule
                 </Button>
-                <Button as={Link} to="/staff/reports" variant="secondary" className="text-start py-2" style={{ fontSize: '0.85rem' }}>
+                <Button
+                  as={Link}
+                  to="/staff/reports"
+                  variant="outline-secondary"
+                  className="text-start d-flex align-items-center gap-2"
+                >
+                  <i className="bi bi-graph-up"></i>
                   Generate Reports
                 </Button>
               </div>
