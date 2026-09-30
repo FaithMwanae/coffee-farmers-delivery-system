@@ -51,8 +51,7 @@ const FarmerDeliveryChart = ({ deliveries }) => {
   if (labels.length === 0) {
     return (
       <div className="text-center text-muted py-5">
-        <div style={{ fontSize: '3rem' }}>📦</div>
-        <p>No deliveries recorded yet</p>
+        <p className="mb-0">No deliveries recorded yet</p>
       </div>
     );
   }
