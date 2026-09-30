@@ -10,7 +10,7 @@ export const getDashboard = async (req, res) => {
       pool.query('SELECT COALESCE(SUM(weight), 0) AS total, COUNT(*) AS count FROM deliveries'),
       pool.query('SELECT COUNT(*) FROM transactions'),
       pool.query("SELECT COALESCE(SUM(amount), 0) AS total FROM transactions WHERE type = 'Payment'"),
-      pool.query("SELECT COUNT(*) FROM transactions WHERE type = 'Advance' AND status = 'Pending'"),
+      pool.query("SELECT COUNT(*) FROM transactions WHERE type = 'Advance' AND status IN ('Requested', 'Pending')"),
     ]);
 
     res.json({
@@ -30,6 +30,7 @@ export const getDashboard = async (req, res) => {
 
 // ============================================
 // GET /api/ceo/pending-advances
+// Includes BOTH farmer-requested (Requested) and staff-recorded (Pending)
 // ============================================
 export const getPendingAdvances = async (req, res) => {
   try {
@@ -40,6 +41,8 @@ export const getPendingAdvances = async (req, res) => {
          t.amount,
          t.description,
          t.status,
+         t.requested_by,
+         t.rejection_reason,
          t.farmer_id,
          f.member_no,
          f.name AS farmer_name,
@@ -48,8 +51,12 @@ export const getPendingAdvances = async (req, res) => {
          f.total_delivered
        FROM transactions t
        JOIN farmers f ON f.id = t.farmer_id
-       WHERE t.type = 'Advance' AND t.status = 'Pending'
-       ORDER BY t.date DESC, t.id DESC`
+       WHERE t.type = 'Advance'
+         AND t.status IN ('Requested', 'Pending')
+       ORDER BY
+         CASE WHEN t.status = 'Requested' THEN 0 ELSE 1 END,
+         t.date DESC,
+         t.id DESC`
     );
 
     res.json(result.rows);
@@ -79,14 +86,18 @@ export const approveAdvance = async (req, res) => {
     }
 
     const tx = check.rows[0];
-    if (tx.status !== 'Pending') {
+    if (!['Requested', 'Pending'].includes(tx.status)) {
       await client.query('ROLLBACK');
       return res.status(400).json({ message: `Advance already ${tx.status.toLowerCase()}.` });
     }
 
     await client.query(
-      "UPDATE transactions SET status = 'Completed' WHERE id = $1",
-      [id]
+      `UPDATE transactions
+       SET status = 'Completed',
+           approved_by = $1,
+           approved_at = NOW()
+       WHERE id = $2`,
+      [req.user.id, id]
     );
 
     await client.query(
@@ -132,8 +143,13 @@ export const rejectAdvance = async (req, res) => {
     }
 
     await client.query(
-      "UPDATE transactions SET status = 'Rejected', description = description || ' [Rejected: ' || $1 || ']' WHERE id = $2",
-      [reason || 'Not specified', id]
+      `UPDATE transactions
+       SET status = 'Rejected',
+           rejection_reason = $1,
+           approved_by = $2,
+           approved_at = NOW()
+       WHERE id = $3`,
+      [reason || 'Not specified', req.user.id, id]
     );
 
     await client.query(
