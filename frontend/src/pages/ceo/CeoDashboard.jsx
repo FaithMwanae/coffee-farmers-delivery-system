@@ -50,37 +50,61 @@ const CeoDashboard = () => {
 
   if (error) return <Alert variant="danger">{error}</Alert>;
 
+  const firstName = (user?.name || 'CEO').split(' ')[0];
+
   return (
     <Container fluid className="px-0">
       <PageHeader
-        title={`Executive Dashboard`}
-        subtitle={`Welcome, ${user?.name || 'CEO'} — overview of cooperative performance`}
+        title="Executive Dashboard"
+        subtitle={`Welcome back, ${firstName} — cooperative performance overview`}
         action={
-          <Badge
-            bg="dark"
-            className="fw-normal"
-            style={{ fontSize: '0.7rem', letterSpacing: '1px', padding: '8px 12px' }}
-          >
+          <Badge bg="dark" className="fw-normal px-3 py-2" style={{ letterSpacing: '1px' }}>
             SEASON {stats?.season}
           </Badge>
         }
       />
 
+      {/* ============ Stats ============ */}
       <Row className="g-3 mb-4">
         <Col xs={6} lg={3}>
-          <StatsCard title="Total Farmers" value={stats.totalFarmers} subtitle="Registered members" color="success" icon="bi-people" />
+          <StatsCard
+            title="Total Farmers"
+            value={stats.totalFarmers}
+            subtitle="Registered members"
+            color="success"
+            icon="bi-people"
+          />
         </Col>
         <Col xs={6} lg={3}>
-          <StatsCard title="Total Deliveries" value={formatWeight(stats.totalWeight)} subtitle={`${stats.totalDeliveries} deliveries`} color="primary" icon="bi-box-seam" />
+          <StatsCard
+            title="Total Deliveries"
+            value={formatWeight(stats.totalWeight)}
+            subtitle={`${stats.totalDeliveries} deliveries`}
+            color="primary"
+            icon="bi-box-seam"
+          />
         </Col>
         <Col xs={6} lg={3}>
-          <StatsCard title="Transactions" value={stats.totalTransactions} subtitle="All time" color="info" icon="bi-arrow-left-right" />
+          <StatsCard
+            title="Transactions"
+            value={stats.totalTransactions}
+            subtitle="All time"
+            color="info"
+            icon="bi-arrow-left-right"
+          />
         </Col>
         <Col xs={6} lg={3}>
-          <StatsCard title="Pending Approvals" value={stats.pendingAdvances} subtitle="Advances to review" color="danger" icon="bi-hourglass-split" />
+          <StatsCard
+            title="Pending Approvals"
+            value={stats.pendingAdvances}
+            subtitle="Advances to review"
+            color="danger"
+            icon="bi-hourglass-split"
+          />
         </Col>
       </Row>
 
+      {/* ============ Charts Row 1 ============ */}
       <Row className="g-3 mb-4">
         <Col lg={8}>
           <ChartWrapper title="Monthly Deliveries" icon="bi-graph-up" height={300}>
@@ -98,6 +122,7 @@ const CeoDashboard = () => {
         </Col>
       </Row>
 
+      {/* ============ Charts Row 2 + Quick Actions ============ */}
       <Row className="g-3">
         <Col lg={8}>
           <ChartWrapper title="Payment Trends" icon="bi-cash-stack" height={300}>
@@ -110,25 +135,51 @@ const CeoDashboard = () => {
         </Col>
 
         <Col lg={4}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white border-bottom" style={{ padding: '14px 20px' }}>
-              <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>Quick Actions</span>
+          <Card className="h-100">
+            <Card.Header>
+              <span>Quick Actions</span>
             </Card.Header>
-            <Card.Body>
+            <Card.Body className="p-3">
               <div className="d-grid gap-2">
-                <Button as={Link} to="/ceo/advances" variant="danger" className="text-start py-2" style={{ fontSize: '0.85rem' }}>
-                  Review Pending Advances
+                <Button
+                  as={Link}
+                  to="/ceo/advances"
+                  variant={stats.pendingAdvances > 0 ? 'danger' : 'outline-danger'}
+                  className="text-start d-flex align-items-center justify-content-between"
+                >
+                  <span className="d-flex align-items-center gap-2">
+                    <i className="bi bi-hourglass-split"></i>
+                    Review Pending Advances
+                  </span>
                   {stats.pendingAdvances > 0 && (
-                    <Badge bg="light" text="dark" className="ms-2">{stats.pendingAdvances}</Badge>
+                    <Badge bg="light" text="dark">{stats.pendingAdvances}</Badge>
                   )}
                 </Button>
-                <Button as={Link} to="/ceo/analytics" variant="success" className="text-start py-2" style={{ fontSize: '0.85rem' }}>
+                <Button
+                  as={Link}
+                  to="/ceo/analytics"
+                  variant="success"
+                  className="text-start d-flex align-items-center gap-2"
+                >
+                  <i className="bi bi-bar-chart"></i>
                   View Analytics
                 </Button>
-                <Button as={Link} to="/staff/reports" variant="primary" className="text-start py-2" style={{ fontSize: '0.85rem' }}>
+                <Button
+                  as={Link}
+                  to="/staff/reports"
+                  variant="outline-success"
+                  className="text-start d-flex align-items-center gap-2"
+                >
+                  <i className="bi bi-file-earmark-text"></i>
                   Generate Reports
                 </Button>
-                <Button as={Link} to="/admin/audit-logs" variant="secondary" className="text-start py-2" style={{ fontSize: '0.85rem' }}>
+                <Button
+                  as={Link}
+                  to="/admin/audit-logs"
+                  variant="outline-secondary"
+                  className="text-start d-flex align-items-center gap-2"
+                >
+                  <i className="bi bi-clipboard-data"></i>
                   Audit Trail
                 </Button>
               </div>

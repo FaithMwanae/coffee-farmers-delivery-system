@@ -53,23 +53,21 @@ const AdminDashboard = () => {
 
   if (error) return <Alert variant="danger">{error}</Alert>;
 
+  const firstName = (user?.name || 'Admin').split(' ')[0];
+
   return (
     <Container fluid className="px-0">
       <PageHeader
-        title={`Welcome, ${user?.name || 'Admin'}`}
+        title={`Welcome back, ${firstName}`}
         subtitle="System overview and analytics"
         action={
-          <Badge
-            bg="dark"
-            className="fw-normal"
-            style={{ fontSize: '0.7rem', letterSpacing: '1px', padding: '8px 12px' }}
-          >
+          <Badge bg="dark" className="fw-normal px-3 py-2" style={{ letterSpacing: '1px' }}>
             SEASON {stats?.season}
           </Badge>
         }
       />
 
-      {/* Stats */}
+      {/* ============ Stats ============ */}
       <Row className="g-3 mb-4">
         <Col xs={6} lg={3}>
           <StatsCard
@@ -109,7 +107,7 @@ const AdminDashboard = () => {
         </Col>
       </Row>
 
-      {/* Charts Row 1 */}
+      {/* ============ Charts Row 1 ============ */}
       <Row className="g-3 mb-4">
         <Col lg={8}>
           <ChartWrapper title="Monthly Deliveries" icon="bi-graph-up" height={300}>
@@ -127,7 +125,7 @@ const AdminDashboard = () => {
         </Col>
       </Row>
 
-      {/* Charts Row 2 + Quick Actions */}
+      {/* ============ Charts Row 2 + Quick Actions ============ */}
       <Row className="g-3 mb-4">
         <Col lg={8}>
           <ChartWrapper title="Payment Trends" icon="bi-cash-stack" height={300}>
@@ -139,57 +137,55 @@ const AdminDashboard = () => {
           </ChartWrapper>
         </Col>
         <Col lg={4}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white border-bottom" style={{ padding: '14px 20px' }}>
-              <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>Quick Actions</span>
+          <Card className="h-100">
+            <Card.Header>
+              <span>Quick Actions</span>
             </Card.Header>
-            <Card.Body>
+            <Card.Body className="p-3">
               <div className="d-grid gap-2">
                 <Button
                   as={Link}
                   to="/admin/users"
                   variant="success"
-                  className="text-start py-2"
-                  style={{ fontSize: '0.85rem' }}
+                  className="text-start d-flex align-items-center gap-2"
                 >
+                  <i className="bi bi-people"></i>
                   Manage Users
                 </Button>
                 <Button
                   as={Link}
                   to="/admin/settings"
-                  variant="primary"
-                  className="text-start py-2"
-                  style={{ fontSize: '0.85rem' }}
+                  variant="outline-success"
+                  className="text-start d-flex align-items-center gap-2"
                 >
+                  <i className="bi bi-gear"></i>
                   System Settings
                 </Button>
                 <Button
                   as={Link}
                   to="/admin/audit-logs"
-                  variant="secondary"
-                  className="text-start py-2"
-                  style={{ fontSize: '0.85rem' }}
+                  variant="outline-secondary"
+                  className="text-start d-flex align-items-center gap-2"
                 >
+                  <i className="bi bi-clipboard-data"></i>
                   View Audit Logs
                 </Button>
               </div>
 
               {/* System Health Indicator */}
-              <div
-                className="mt-4 pt-3 border-top small text-muted"
-                style={{ fontSize: '0.75rem' }}
-              >
-                <div className="d-flex justify-content-between mb-1">
+              <div className="mt-4 pt-3 border-top small">
+                <div className="d-flex justify-content-between mb-2 text-muted">
                   <span>Active Users</span>
-                  <strong className="text-dark">{stats.activeUsers}</strong>
+                  <strong className="text-dark num">{stats.activeUsers}</strong>
                 </div>
-                <div className="d-flex justify-content-between mb-1">
+                <div className="d-flex justify-content-between mb-2 text-muted">
                   <span>Total Users</span>
-                  <strong className="text-dark">{stats.totalUsers}</strong>
+                  <strong className="text-dark num">{stats.totalUsers}</strong>
                 </div>
-                <div className="d-flex justify-content-between">
+                <div className="d-flex justify-content-between align-items-center text-muted">
                   <span>System Status</span>
-                  <Badge bg="success" className="fw-normal" style={{ fontSize: '0.65rem' }}>
+                  <Badge bg="success" className="fw-normal">
+                    <i className="bi bi-circle-fill me-1" style={{ fontSize: '0.5rem' }}></i>
                     ONLINE
                   </Badge>
                 </div>
@@ -199,34 +195,23 @@ const AdminDashboard = () => {
         </Col>
       </Row>
 
-      {/* Recent Activity */}
-      <Card className="border-0 shadow-sm">
-        <Card.Header
-          className="bg-white border-bottom d-flex justify-content-between align-items-center"
-          style={{ padding: '14px 20px' }}
-        >
-          <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>Recent Activity</span>
-          <Link
-            to="/admin/audit-logs"
-            className="text-success text-decoration-none small fw-semibold"
-          >
-            View All
+      {/* ============ Recent Activity ============ */}
+      <Card>
+        <Card.Header className="d-flex justify-content-between align-items-center">
+          <span>Recent Activity</span>
+          <Link to="/admin/audit-logs" className="text-success text-decoration-none small fw-semibold">
+            View All <i className="bi bi-arrow-right ms-1"></i>
           </Link>
         </Card.Header>
         <Card.Body className="p-0">
           <div className="table-responsive">
-            <table className="table table-hover align-middle mb-0" style={{ fontSize: '0.85rem' }}>
-              <thead className="table-light">
+            <table className="table table-hover align-middle mb-0">
+              <thead>
                 <tr>
-                  {['Time', 'User', 'Action', 'Details'].map((label) => (
-                    <th
-                      key={label}
-                      className="text-uppercase text-muted fw-semibold border-bottom"
-                      style={{ fontSize: '0.68rem', letterSpacing: '0.5px', padding: '12px 16px' }}
-                    >
-                      {label}
-                    </th>
-                  ))}
+                  <th>Time</th>
+                  <th>User</th>
+                  <th>Action</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,24 +223,15 @@ const AdminDashboard = () => {
                   </tr>
                 ) : (
                   activity.slice(0, 8).map((log) => (
-                    <tr key={log.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                      <td className="small text-muted" style={{ padding: '12px 16px' }}>
-                        {formatDateTime(log.timestamp)}
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>{log.user_name || log.user}</td>
-                      <td style={{ padding: '12px 16px' }}>
-                        <Badge
-                          bg="light"
-                          text="dark"
-                          className="border fw-normal"
-                          style={{ fontSize: '0.7rem', letterSpacing: '0.3px' }}
-                        >
+                    <tr key={log.id}>
+                      <td className="text-muted small">{formatDateTime(log.timestamp)}</td>
+                      <td className="fw-semibold">{log.user_name || log.user}</td>
+                      <td>
+                        <Badge bg="light" text="dark" className="border fw-normal">
                           {log.action}
                         </Badge>
                       </td>
-                      <td className="small text-muted" style={{ padding: '12px 16px' }}>
-                        {log.details}
-                      </td>
+                      <td className="text-muted small">{log.details}</td>
                     </tr>
                   ))
                 )}
