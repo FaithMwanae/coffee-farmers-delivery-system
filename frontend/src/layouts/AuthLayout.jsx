@@ -2,44 +2,86 @@ import { Outlet } from 'react-router-dom';
 
 const AuthLayout = () => {
   return (
-    <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light py-3 px-2">
-      <div className="container">
-        <div className="row justify-content-center">
-          <div className="col-12 col-sm-10 col-md-7 col-lg-5">
-            <div className="text-center mb-4">
-              <h1
-                className="fw-bold text-dark mb-1"
-                style={{
-                  fontSize: 'clamp(1.2rem, 4.5vw, 1.7rem)',
-                  letterSpacing: '2px',
-                }}
-              >
-                KALILUNI FACTORY
-              </h1>
-              <p
-                className="text-muted small mb-0"
-                style={{
-                  letterSpacing: '2px',
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                }}
-              >
-                CO-OPERATIVE SOCIETY
-              </p>
-            </div>
+    <div className="auth-shell">
+      {/* ============================================
+          LEFT PANEL — Brand identity (desktop only)
+          ============================================ */}
+      <aside className="auth-brand" aria-hidden="true">
+        <div className="auth-brand-inner">
+          {/* Logo mark */}
+          <div className="auth-brand-mark">
+            <i className="bi bi-cup-hot"></i>
+          </div>
 
-            <div className="card shadow-sm border-0">
-              <div className="card-body p-3 p-sm-4 p-md-5">
-                <Outlet />
-              </div>
-            </div>
+          {/* Wordmark */}
+          <h1 className="auth-brand-title">KALILUNI</h1>
+          <p className="auth-brand-subtitle">FACTORY CO-OPERATIVE SOCIETY</p>
 
-            <div className="text-center mt-3 text-muted" style={{ fontSize: '0.75rem' }}>
-              &copy; 2026 Kaliluni Farmers Co-operative Society
-            </div>
+          {/* Value proposition */}
+          <p className="auth-brand-tagline">
+            Manage coffee deliveries, farmer payments, and cooperative
+            operations — all in one place.
+          </p>
+
+          {/* Feature bullets */}
+          <ul className="auth-brand-features">
+            <li>
+              <i className="bi bi-check2-circle"></i>
+              <span>Real-time delivery recording</span>
+            </li>
+            <li>
+              <i className="bi bi-check2-circle"></i>
+              <span>Automated payment schedules</span>
+            </li>
+            <li>
+              <i className="bi bi-check2-circle"></i>
+              <span>Farmer self-service portal</span>
+            </li>
+            <li>
+              <i className="bi bi-check2-circle"></i>
+              <span>QR-verified delivery receipts</span>
+            </li>
+          </ul>
+
+          {/* Footer */}
+          <div className="auth-brand-footer">
+            <i className="bi bi-shield-check me-1"></i>
+            Secure • Trusted • Cooperative
           </div>
         </div>
-      </div>
+
+        {/* Subtle background pattern */}
+        <div className="auth-brand-pattern"></div>
+      </aside>
+
+      {/* ============================================
+          RIGHT PANEL — Form area
+          ============================================ */}
+      <main id="main-content" tabIndex={-1} className="auth-form-panel">
+        <div className="auth-form-inner">
+          {/* Mobile brand header (shown only on small screens) */}
+          <div className="auth-mobile-brand d-lg-none">
+            <h2>KALILUNI FACTORY</h2>
+            <p>CO-OPERATIVE SOCIETY</p>
+          </div>
+
+          {/* Form card — renders Login, Register, Forgot, Reset */}
+          <div className="auth-card">
+            <Outlet />
+          </div>
+
+          {/* Footer */}
+          <footer className="auth-footer">
+            <p className="mb-1">
+              &copy; {new Date().getFullYear()} Kaliluni Farmers Co-operative Society
+            </p>
+            <p className="mb-0">
+              Need help?{' '}
+              <a href="mailto:support@kaliluni.co.ke">Contact the cooperative office</a>
+            </p>
+          </footer>
+        </div>
+      </main>
     </div>
   );
 };
