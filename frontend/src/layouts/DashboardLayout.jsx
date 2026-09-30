@@ -129,7 +129,6 @@ const DashboardLayout = () => {
     const isInFarmerView = currentView === 'farmer';
     const canSwitchToFarmer = accountRole === 'staff' || accountRole === 'admin' || accountRole === 'ceo';
 
-    // Case 1: Staff/Admin/CEO currently in Farmer view → "Back to [role] View"
     if (canSwitchToFarmer && isInFarmerView) {
       return (
         <a
@@ -146,7 +145,6 @@ const DashboardLayout = () => {
       );
     }
 
-    // Case 2: Staff/Admin/CEO NOT in farmer view → show Switch / Register
     if (canSwitchToFarmer && !isInFarmerView) {
       if (hasFarmerProfile) {
         return (
@@ -178,7 +176,6 @@ const DashboardLayout = () => {
       );
     }
 
-    // Case 3: Farmer account → nothing extra
     return null;
   };
 
@@ -271,7 +268,7 @@ const DashboardLayout = () => {
               padding: '6px 12px',
             }}
             onClick={() => setShowSidebar(true)}
-            aria-label="Open menu"
+            aria-label="Open navigation menu"
           >
             <i className="bi bi-list" style={{ fontSize: '1.2rem' }}></i>
           </button>
@@ -283,6 +280,7 @@ const DashboardLayout = () => {
               as="button"
               className="kl-user-chip"
               id="user-menu"
+              aria-label="User menu"
             >
               <div className="kl-user-avatar">{getInitials(user?.name)}</div>
               <div className="d-none d-sm-block text-start">
@@ -311,8 +309,10 @@ const DashboardLayout = () => {
           </Dropdown>
         </div>
 
-        {/* Page Content */}
+        {/* Page Content — id="main-content" is the target of the skip link */}
         <Container
+          id="main-content"
+          tabIndex={-1}
           fluid
           className="p-3 p-md-4"
           style={{ flex: 1, maxWidth: '1400px', margin: '0 auto', width: '100%' }}
