@@ -32,7 +32,6 @@ export const getDashboard = async (req, res) => {
     const { advances, payments } = txResult.rows[0];
     const totalDelivered = Number(farmer.total_delivered || 0);
 
-    // Get current rate from settings
     const settingsRes = await pool.query('SELECT rate_per_kg FROM settings LIMIT 1');
     const rate = Number(settingsRes.rows[0]?.rate_per_kg || 80);
 
@@ -184,6 +183,7 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error updating profile.' });
   }
 };
+
 // ============================================
 // POST /api/farmer/enable
 // Allows any authenticated user to register as a farmer
@@ -203,7 +203,6 @@ export const enableFarmerProfile = async (req, res) => {
   }
 
   try {
-    // Check if already a farmer
     const existing = await pool.query(
       'SELECT * FROM farmers WHERE user_id = $1',
       [req.user.id]
@@ -215,12 +214,10 @@ export const enableFarmerProfile = async (req, res) => {
       });
     }
 
-    // Generate member number
     const countRes = await pool.query('SELECT COUNT(*) FROM farmers');
     const nextNum = 100 + Number(countRes.rows[0].count) + 1;
     const memberNo = `KFCS-${String(nextNum).padStart(5, '0')}`;
 
-    // Create farmer profile for this user (any role)
     const result = await pool.query(
       `INSERT INTO farmers
         (user_id, member_no, name, phone, location, coffee_trees, total_delivered, status)
@@ -229,7 +226,6 @@ export const enableFarmerProfile = async (req, res) => {
       [req.user.id, memberNo, req.user.name, phone.trim(), location.trim(), numTrees]
     );
 
-    // Audit log
     try {
       await pool.query(
         `INSERT INTO audit_logs (user_name, role, action, details, ip)
@@ -253,6 +249,7 @@ export const enableFarmerProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error.' });
   }
 };
+
 // ============================================
 // GET /api/farmer/advances/eligibility
 // Returns how much the logged-in farmer can request as an advance
@@ -264,14 +261,11 @@ export const getAdvanceEligibility = async (req, res) => {
       return res.status(404).json({ message: 'Farmer profile not found.' });
     }
 
-    // Get advance rate from settings (default 30)
     const settingsRes = await pool.query(
       'SELECT advance_rate_per_kg FROM settings LIMIT 1'
     );
     const rate = Number(settingsRes.rows[0]?.advance_rate_per_kg || 30);
 
-    // Sum all advances that count against eligibility
-    // (Pending + Completed + Requested all reserve against the limit)
     const advanceRes = await pool.query(
       `SELECT
          COALESCE(SUM(CASE WHEN status IN ('Requested','Pending','Completed') THEN amount END), 0) AS total,
@@ -298,15 +292,161 @@ export const getAdvanceEligibility = async (req, res) => {
       memberNo: farmer.member_no,
       totalDelivered,
       rate,
-      eligible,             // total lifetime capacity
-      totalAdvanced,        // everything reserved
-      disbursed,            // already received
-      pending,              // approved, awaiting disbursement
-      requested,            // awaiting CEO approval
-      available,            // what farmer can still request
+      eligible,
+      totalAdvanced,
+      disbursed,
+      pending,
+      requested,
+      available,
     });
   } catch (error) {
     console.error('Advance eligibility error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// ============================================
+// POST /api/farmer/advances/request
+// Farmer submits an advance request
+// ============================================
+export const requestAdvance = async (req, res) => {
+  const { amount, purpose } = req.body;
+
+  if (!amount || Number(amount) <= 0) {
+    return res.status(400).json({ message: 'Please enter a valid amount.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const farmerRes = await client.query(
+      'SELECT * FROM farmers WHERE user_id = $1',
+      [req.user.id]
+    );
+    if (farmerRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Farmer profile not found.' });
+    }
+    const farmer = farmerRes.rows[0];
+
+    // --- Eligibility check inside transaction (prevents race conditions) ---
+    const settingsRes = await client.query(
+      'SELECT advance_rate_per_kg FROM settings LIMIT 1'
+    );
+    const rate = Number(settingsRes.rows[0]?.advance_rate_per_kg || 30);
+
+    const advanceRes = await client.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total
+       FROM transactions
+       WHERE farmer_id = $1
+         AND type = 'Advance'
+         AND status IN ('Requested','Pending','Completed')`,
+      [farmer.id]
+    );
+    const alreadyReserved = Number(advanceRes.rows[0].total);
+
+    const totalDelivered = Number(farmer.total_delivered || 0);
+    const eligible = totalDelivered * rate;
+    const available = Math.max(0, eligible - alreadyReserved);
+
+    const requestAmount = Number(amount);
+
+    if (requestAmount > available) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        message: `Amount exceeds your available balance of KES ${available.toLocaleString()}.`,
+        available,
+        eligible,
+        alreadyReserved,
+        rate,
+      });
+    }
+
+    // Create the request — status 'Requested' means awaiting CEO approval
+    const txRes = await client.query(
+      `INSERT INTO transactions
+         (farmer_id, type, amount, description, status, requested_by)
+       VALUES ($1, 'Advance', $2, $3, 'Requested', 'farmer')
+       RETURNING *`,
+      [
+        farmer.id,
+        requestAmount,
+        purpose ? String(purpose).trim() : 'Advance request',
+      ]
+    );
+
+    const tx = txRes.rows[0];
+
+    // Audit
+    await client.query(
+      `INSERT INTO audit_logs (user_name, role, action, details, ip)
+       VALUES ($1, $2, 'REQUEST_ADVANCE', $3, $4)`,
+      [
+        req.user.name || req.user.email,
+        req.user.role,
+        `Requested KES ${requestAmount.toLocaleString()} advance (${farmer.member_no})`,
+        req.ip || '127.0.0.1',
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      success: true,
+      message: 'Advance request submitted. Awaiting CEO approval.',
+      request: {
+        id: tx.id,
+        amount: Number(tx.amount),
+        description: tx.description,
+        status: tx.status,
+        date: tx.date,
+      },
+      remainingAvailable: available - requestAmount,
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Request advance error:', error);
+    res.status(500).json({ message: 'Server error submitting request.' });
+  } finally {
+    client.release();
+  }
+};
+
+// ============================================
+// GET /api/farmer/advances
+// Farmer's own advance history (all statuses)
+// ============================================
+export const getMyAdvances = async (req, res) => {
+  try {
+    const farmer = await getFarmerForUser(req.user.id);
+    if (!farmer) {
+      return res.status(404).json({ message: 'Farmer profile not found.' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, date, amount, description, status, requested_by,
+              approved_at, rejection_reason
+       FROM transactions
+       WHERE farmer_id = $1 AND type = 'Advance'
+       ORDER BY date DESC, id DESC`,
+      [farmer.id]
+    );
+
+    res.json(
+      result.rows.map((t) => ({
+        id: t.id,
+        date: t.date,
+        amount: Number(t.amount),
+        description: t.description,
+        status: t.status,
+        requestedBy: t.requested_by,
+        approvedAt: t.approved_at,
+        rejectionReason: t.rejection_reason,
+      }))
+    );
+  } catch (error) {
+    console.error('Get my advances error:', error);
     res.status(500).json({ message: 'Server error.' });
   }
 };

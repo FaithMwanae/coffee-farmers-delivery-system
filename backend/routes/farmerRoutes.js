@@ -4,6 +4,8 @@ import {
   getAnnouncements, getForms, getProfile, updateProfile,
   enableFarmerProfile,
   getAdvanceEligibility,
+  requestAdvance,
+  getMyAdvances,
 } from '../controllers/farmerController.js';
 import { authenticate } from '../middleware/auth.js';
 import { allowRoles } from '../middleware/roleCheck.js';
@@ -27,7 +29,12 @@ router.get('/forms', getForms);
 router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
 
-// Advance eligibility ⭐ NEW
+// ============================================
+// Advance routes
+// ============================================
+// ⚠️ Order matters — put /advances/request BEFORE /advances/:id (if it existed)
 router.get('/advances/eligibility', getAdvanceEligibility);
+router.get('/advances', getMyAdvances);
+router.post('/advances/request', requestAdvance);
 
 export default router;
