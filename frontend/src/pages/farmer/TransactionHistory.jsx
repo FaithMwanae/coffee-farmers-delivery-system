@@ -8,16 +8,28 @@ import PageHeader from '../../components/common/PageHeader';
 import StatsCard from '../../components/common/StatsCard';
 import { toast } from 'react-toastify';
 
+const STATUS_VARIANTS = {
+  Requested: 'info',
+  Pending: 'warning',
+  Completed: 'success',
+  Rejected: 'danger',
+};
+
 const TransactionHistory = () => {
   const [transactions, setTransactions] = useState([]);
+  const [advances, setAdvances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await farmerApi.getTransactions();
-        setTransactions(data);
+        const [txData, advanceData] = await Promise.all([
+          farmerApi.getTransactions(),
+          farmerApi.getMyAdvances().catch(() => []),
+        ]);
+        setTransactions(txData);
+        setAdvances(advanceData);
       } catch (err) {
         console.error(err);
         setError('Failed to load transactions');
@@ -28,10 +40,9 @@ const TransactionHistory = () => {
     load();
   }, []);
 
-  // Compute totals
   const totals = transactions.reduce(
     (acc, t) => {
-      if (t.type === 'Advance') acc.advances += Number(t.amount);
+      if (t.type === 'Advance' && t.status === 'Completed') acc.advances += Number(t.amount);
       if (t.type === 'Payment') acc.payments += Number(t.amount);
       if (t.type === 'Deduction') acc.deductions += Number(t.amount);
       return acc;
@@ -39,9 +50,6 @@ const TransactionHistory = () => {
     { advances: 0, payments: 0, deductions: 0 }
   );
 
-  // ================================
-  // Download PDF Statement
-  // ================================
   const handleDownloadStatement = () => {
     try {
       const pdfColumns = [
@@ -75,6 +83,7 @@ const TransactionHistory = () => {
     }
   };
 
+  // ============ General transactions table columns ============
   const columns = [
     { key: 'date', label: 'Date', render: (v) => formatDate(v) },
     {
@@ -90,15 +99,49 @@ const TransactionHistory = () => {
       key: 'amount',
       label: 'Amount',
       render: (v, row) => (
-        <span className={row.type === 'Payment' ? 'text-success' : 'text-danger'}>
-          {row.type === 'Payment' ? '+' : '-'} {formatCurrency(v)}
+        <span className={`num ${row.type === 'Payment' ? 'text-success' : 'text-danger'}`}>
+          {row.type === 'Payment' ? '+' : '−'} {formatCurrency(v)}
         </span>
       ),
     },
     {
       key: 'status',
       label: 'Status',
-      render: (v) => <Badge bg="success">{v}</Badge>,
+      render: (v) => (
+        <Badge bg={STATUS_VARIANTS[v] || 'success'}>{v}</Badge>
+      ),
+    },
+  ];
+
+  // ============ Advance requests table columns ============
+  const advanceColumns = [
+    { key: 'date', label: 'Date', render: (v) => formatDate(v) },
+    {
+      key: 'amount',
+      label: 'Amount',
+      render: (v) => <span className="num fw-semibold">{formatCurrency(v)}</span>,
+    },
+    { key: 'description', label: 'Purpose' },
+    {
+      key: 'requestedBy',
+      label: 'Requested By',
+      render: (v) => (
+        <Badge bg={v === 'farmer' ? 'primary' : 'secondary'} className="fw-normal">
+          {v === 'farmer' ? 'You' : 'Staff'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (v) => (
+        <Badge bg={STATUS_VARIANTS[v] || 'secondary'}>{v}</Badge>
+      ),
+    },
+    {
+      key: 'rejectionReason',
+      label: 'Reason',
+      render: (v) => (v ? <span className="text-muted small">{v}</span> : <span className="text-muted">—</span>),
     },
   ];
 
@@ -113,7 +156,7 @@ const TransactionHistory = () => {
   if (error) return <Alert variant="danger">{error}</Alert>;
 
   return (
-    <Container fluid>
+    <Container fluid className="px-0">
       <PageHeader
         title="Transaction History"
         subtitle="All your advances, deductions, and payments"
@@ -123,38 +166,73 @@ const TransactionHistory = () => {
             onClick={handleDownloadStatement}
             disabled={transactions.length === 0}
           >
-            📄 Download Statement
+            <i className="bi bi-download me-1"></i>
+            Download Statement
           </Button>
         }
       />
 
       {/* Summary Cards */}
-      <Row className="mb-4">
-        <Col md={4} sm={6} className="mb-3">
+      <Row className="g-3 mb-4">
+        <Col xs={6} lg={4}>
           <StatsCard
             title="Total Payments"
             value={formatCurrency(totals.payments)}
+            subtitle="Received to date"
             color="success"
+            icon="bi-cash-stack"
           />
         </Col>
-        <Col md={4} sm={6} className="mb-3">
+        <Col xs={6} lg={4}>
           <StatsCard
             title="Total Advances"
             value={formatCurrency(totals.advances)}
+            subtitle="Completed advances"
             color="warning"
+            icon="bi-cash-coin"
           />
         </Col>
-        <Col md={4} sm={6} className="mb-3">
+        <Col xs={6} lg={4}>
           <StatsCard
             title="Total Deductions"
             value={formatCurrency(totals.deductions)}
+            subtitle="Loan, fees, inputs"
             color="danger"
+            icon="bi-dash-circle"
           />
         </Col>
       </Row>
 
-      <Card className="shadow-sm border-0">
-        <Card.Body>
+      {/* Advance Requests */}
+      {advances.length > 0 && (
+        <Card className="mb-4">
+          <Card.Header className="d-flex justify-content-between align-items-center">
+            <span>My Advance Requests</span>
+            <small className="text-muted">
+              {advances.length} request{advances.length === 1 ? '' : 's'}
+            </small>
+          </Card.Header>
+          <Card.Body className="p-0">
+            <DataTable
+              columns={advanceColumns}
+              data={advances}
+              searchPlaceholder="Search requests..."
+              searchKeys={['description', 'status']}
+              itemsPerPage={5}
+            />
+          </Card.Body>
+        </Card>
+      )}
+
+      {/* All Transactions */}
+      <Card>
+        <Card.Header className="d-flex justify-content-between align-items-center">
+          <span>All Transactions</span>
+          <small className="text-muted">
+            {transactions.length} record{transactions.length === 1 ? '' : 's'}
+          </small>
+        </Card.Header>
+        <Card.Body className="p-0">
           <DataTable
             columns={columns}
             data={transactions}

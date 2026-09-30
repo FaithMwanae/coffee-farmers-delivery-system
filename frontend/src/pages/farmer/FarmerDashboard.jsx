@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Container, Row, Col, Card, Badge, Spinner, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Card, Badge, Spinner, Alert, Button } from 'react-bootstrap';
 import { useAuth } from '../../contexts/AuthContext';
 import { farmerApi } from '../../api/farmerApi';
 import { formatCurrency, formatWeight, formatDate } from '../../utils/formatters';
@@ -8,35 +8,41 @@ import StatsCard from '../../components/common/StatsCard';
 import PageHeader from '../../components/common/PageHeader';
 import ChartWrapper from '../../components/charts/ChartWrapper';
 import FarmerDeliveryChart from '../../components/charts/FarmerDeliveryChart';
+import RequestAdvanceModal from '../../components/farmer/RequestAdvanceModal';
 
 const FarmerDashboard = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
+  const [eligibility, setEligibility] = useState(null);
   const [recentDeliveries, setRecentDeliveries] = useState([]);
   const [allDeliveries, setAllDeliveries] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+
+  const loadData = async () => {
+    try {
+      const [statsData, deliveriesData, announcementsData, eligibilityData] = await Promise.all([
+        farmerApi.getDashboardStats(),
+        farmerApi.getDeliveries(),
+        farmerApi.getAnnouncements(),
+        farmerApi.getAdvanceEligibility().catch(() => null),
+      ]);
+      setStats(statsData);
+      setRecentDeliveries(deliveriesData.slice(0, 5));
+      setAllDeliveries(deliveriesData);
+      setAnnouncements(announcementsData.slice(0, 3));
+      setEligibility(eligibilityData);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [statsData, deliveriesData, announcementsData] = await Promise.all([
-          farmerApi.getDashboardStats(),
-          farmerApi.getDeliveries(),
-          farmerApi.getAnnouncements(),
-        ]);
-        setStats(statsData);
-        setRecentDeliveries(deliveriesData.slice(0, 5));
-        setAllDeliveries(deliveriesData);
-        setAnnouncements(announcementsData.slice(0, 3));
-      } catch (err) {
-        console.error(err);
-        setError('Failed to load dashboard data');
-      } finally {
-        setLoading(false);
-      }
-    };
     loadData();
   }, []);
 
@@ -54,6 +60,7 @@ const FarmerDashboard = () => {
   if (error) return <Alert variant="danger">{error}</Alert>;
 
   const firstName = (user?.name || 'Farmer').split(' ')[0];
+  const canRequest = eligibility && eligibility.available > 0;
 
   return (
     <Container fluid className="px-0">
@@ -107,12 +114,83 @@ const FarmerDashboard = () => {
         </Col>
       </Row>
 
-      {/* ============ Delivery Chart ============ */}
+      {/* ============ Chart + Eligibility ============ */}
       <Row className="g-3 mb-4">
-        <Col lg={12}>
+        <Col lg={8}>
           <ChartWrapper title="My Delivery History" height={280}>
             <FarmerDeliveryChart deliveries={allDeliveries} />
           </ChartWrapper>
+        </Col>
+        <Col lg={4}>
+          <Card className="h-100">
+            <Card.Header>
+              <span>Advance Eligibility</span>
+            </Card.Header>
+            <Card.Body className="d-flex flex-column">
+              {!eligibility ? (
+                <div className="text-center text-muted py-3 small">
+                  Eligibility unavailable
+                </div>
+              ) : (
+                <>
+                  <div className="text-center mb-3">
+                    <div className="text-muted small mb-1">Available to Request</div>
+                    <div
+                      className="fw-bold num"
+                      style={{ fontSize: '1.9rem', color: 'var(--kl-primary)' }}
+                    >
+                      {formatCurrency(eligibility.available)}
+                    </div>
+                  </div>
+
+                  <div className="border-top pt-3 mb-3 small">
+                    <div className="d-flex justify-content-between py-1">
+                      <span className="text-muted">Total Eligible</span>
+                      <strong className="num">{formatCurrency(eligibility.eligible)}</strong>
+                    </div>
+                    <div className="d-flex justify-content-between py-1">
+                      <span className="text-muted">Already Taken</span>
+                      <strong className="num text-danger">
+                        − {formatCurrency(eligibility.totalAdvanced)}
+                      </strong>
+                    </div>
+                    {eligibility.pending > 0 && (
+                      <div className="d-flex justify-content-between py-1">
+                        <span className="text-muted">Pending Approval</span>
+                        <strong className="num text-warning">
+                          {formatCurrency(eligibility.pending)}
+                        </strong>
+                      </div>
+                    )}
+                    {eligibility.requested > 0 && (
+                      <div className="d-flex justify-content-between py-1">
+                        <span className="text-muted">Awaiting CEO</span>
+                        <strong className="num text-info">
+                          {formatCurrency(eligibility.requested)}
+                        </strong>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-auto">
+                    <Button
+                      variant="success"
+                      className="w-100 d-flex align-items-center justify-content-center gap-2"
+                      disabled={!canRequest}
+                      onClick={() => setShowAdvanceModal(true)}
+                    >
+                      <i className="bi bi-cash-coin"></i>
+                      {canRequest ? 'Request Advance' : 'No Balance Available'}
+                    </Button>
+                    <div className="text-center text-muted mt-2" style={{ fontSize: '0.72rem' }}>
+                      Based on {formatWeight(eligibility.totalDelivered)} delivered
+                      × {formatCurrency(eligibility.rate)}/kg
+                    </div>
+                  </div>
+                </>
+              )}
+            </Card.Body>
+          </Card>
         </Col>
       </Row>
 
@@ -207,6 +285,14 @@ const FarmerDashboard = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* Request Advance Modal */}
+      <RequestAdvanceModal
+        show={showAdvanceModal}
+        onHide={() => setShowAdvanceModal(false)}
+        onSuccess={loadData}
+        initialEligibility={eligibility}
+      />
     </Container>
   );
 };
