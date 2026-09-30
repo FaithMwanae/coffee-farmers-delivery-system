@@ -26,6 +26,24 @@ export const farmerApi = {
   },
 
   // ============================================
+  // ADVANCES — self-service
+  // ============================================
+  getAdvanceEligibility: async () => {
+    const { data } = await client.get('/farmer/advances/eligibility');
+    return data;
+  },
+
+  getMyAdvances: async () => {
+    const { data } = await client.get('/farmer/advances');
+    return data;
+  },
+
+  requestAdvance: async (payload) => {
+    const { data } = await client.post('/farmer/advances/request', payload);
+    return data;
+  },
+
+  // ============================================
   // ANNOUNCEMENTS
   // ============================================
   getAnnouncements: async () => {
