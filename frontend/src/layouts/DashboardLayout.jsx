@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Container, Offcanvas, Dropdown } from 'react-bootstrap';
+import { Container, Offcanvas, Dropdown, Badge } from 'react-bootstrap';
 import { useAuth } from '../contexts/AuthContext';
+import { ceoApi } from '../api/ceoApi';
 
 const DashboardLayout = () => {
   const { user, logout, hasFarmerProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [showSidebar, setShowSidebar] = useState(false);
+  const [pendingAdvances, setPendingAdvances] = useState(0);
 
   // ============================================
   // Determine the CURRENT VIEW from the URL
@@ -22,6 +24,28 @@ const DashboardLayout = () => {
   };
 
   const currentView = getCurrentView();
+
+  // ============================================
+  // Badge counter — CEO only
+  // Fetches pending advance count and refreshes every 60s
+  // ============================================
+  useEffect(() => {
+    const isCeo = user?.role === 'ceo' || user?.role === 'admin';
+    if (!isCeo) return;
+
+    const fetchCount = async () => {
+      try {
+        const data = await ceoApi.getPendingAdvances();
+        setPendingAdvances(Array.isArray(data) ? data.length : 0);
+      } catch (err) {
+        // silent — don't spam toasts for background polling
+      }
+    };
+
+    fetchCount();
+    const interval = setInterval(fetchCount, 60000);
+    return () => clearInterval(interval);
+  }, [user?.role]);
 
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -95,7 +119,7 @@ const DashboardLayout = () => {
           title: 'Executive',
           items: [
             { label: 'Dashboard', route: '/ceo/dashboard', icon: 'bi-speedometer2' },
-            { label: 'Advance Approvals', route: '/ceo/advances', icon: 'bi-check2-square' },
+            { label: 'Advance Approvals', route: '/ceo/advances', icon: 'bi-check2-square', badgeKey: 'advances' },
           ],
         },
         {
@@ -199,6 +223,9 @@ const DashboardLayout = () => {
             <div className="kl-sidebar-section">{section.title}</div>
             {section.items.map((item) => {
               const isActive = location.pathname === item.route;
+              const showBadge =
+                item.badgeKey === 'advances' && pendingAdvances > 0;
+
               return (
                 <a
                   key={item.route}
@@ -210,7 +237,16 @@ const DashboardLayout = () => {
                   }}
                 >
                   <i className={`bi ${item.icon}`}></i>
-                  <span>{item.label}</span>
+                  <span className="flex-grow-1">{item.label}</span>
+                  {showBadge && (
+                    <Badge
+                      bg="danger"
+                      pill
+                      style={{ fontSize: '0.65rem', padding: '3px 7px' }}
+                    >
+                      {pendingAdvances}
+                    </Badge>
+                  )}
                 </a>
               );
             })}
@@ -309,7 +345,7 @@ const DashboardLayout = () => {
           </Dropdown>
         </div>
 
-        {/* Page Content — id="main-content" is the target of the skip link */}
+        {/* Page Content */}
         <Container
           id="main-content"
           tabIndex={-1}
