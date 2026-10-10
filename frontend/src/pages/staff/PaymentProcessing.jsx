@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
   Container, Card, Badge, Spinner, Alert, Row, Col, Button,
-  Modal, Form, Nav, Form as BsForm,
+  Modal, Form, Nav,
 } from 'react-bootstrap';
 import { staffApi } from '../../api/staffApi';
 import { formatCurrency, formatWeight, formatDate } from '../../utils/formatters';
@@ -92,7 +92,6 @@ const PaymentProcessing = () => {
     loadReleased();
   }, []);
 
-  // Load groups when bulk tab is opened or groupBy changes
   useEffect(() => {
     if (tab === 'bulk') {
       loadGroups(groupBy);
@@ -254,7 +253,6 @@ const PaymentProcessing = () => {
     const isBulk = tab === 'bulk';
 
     if (isBulk) {
-      // Flatten groups into rows
       const header = ['Group', 'Member No', 'Farmer', 'Phone', 'M-Pesa', 'Bank', 'Account No', 'Net Pay'];
       const rows = [];
       groups.forEach((g) => {
@@ -543,11 +541,10 @@ const PaymentProcessing = () => {
               </Nav.Item>
             </Nav>
 
-            {/* Bulk tab controls */}
             {isBulkTab && (
               <div className="d-flex gap-2 align-items-center px-3 py-2">
                 <small className="text-muted">Group by:</small>
-                <BsForm.Select
+                <Form.Select
                   size="sm"
                   value={groupBy}
                   onChange={(e) => setGroupBy(e.target.value)}
@@ -555,14 +552,13 @@ const PaymentProcessing = () => {
                 >
                   <option value="bank">Bank</option>
                   <option value="method">Payment Method</option>
-                </BsForm.Select>
+                </Form.Select>
               </div>
             )}
           </div>
         </Card.Header>
 
         <Card.Body className="p-0">
-          {/* ============ BULK TAB ============ */}
           {isBulkTab ? (
             bulkLoading ? (
               <div className="text-center py-5">
