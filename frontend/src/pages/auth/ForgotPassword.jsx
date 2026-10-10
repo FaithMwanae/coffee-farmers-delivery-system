@@ -27,18 +27,17 @@ const ForgotPassword = () => {
 
     setLoading(true);
     try {
-      const { data } = await client.post('/auth/forgot-password', {
+      await client.post('/auth/forgot-password', {
         email: email.trim(),
       });
 
-      toast.success('Verification code sent to your email');
+      toast.success('If your email is registered, a code has been sent.');
+      toast.info('Check your spam folder if you don\'t see it.', {
+        autoClose: 5000,
+      });
 
-      // Navigate to reset page with email in state
       navigate('/reset-password', {
-        state: {
-          email: email.trim(),
-          devCode: data.devCode, // for dev testing
-        },
+        state: { email: email.trim() },
       });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to send code. Try again.');
@@ -60,12 +59,8 @@ const ForgotPassword = () => {
         <Form.Group className="mb-3">
           <Form.Label className="small fw-semibold text-secondary">Email Address</Form.Label>
           <Form.Control
-            type="text"
-            inputMode="email"
+            type="email"
             autoComplete="email"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
             placeholder="you@kaliluni.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

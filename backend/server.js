@@ -14,7 +14,7 @@ import ceoRoutes from './routes/ceoRoutes.js';
 import formsRoutes from './routes/formsRoutes.js';
 import verifyRoutes from './routes/verifyRoutes.js';
 
-import { initEmailService } from './config/email.js';
+import { initEmailService, isEmailEnabled } from './config/email.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -112,7 +112,19 @@ const startServer = async () => {
   try {
     await initEmailService();
   } catch (err) {
-    console.warn('Email service init failed:', err.message);
+    console.error('🚨 Email service init failed:', err.message);
+  }
+
+  // Production-specific email check
+  if (process.env.NODE_ENV === 'production' && !isEmailEnabled()) {
+    console.error('');
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('🚨 PRODUCTION RUNNING WITHOUT EMAIL');
+    console.error('   Password reset flows will silently fail.');
+    console.error('   Set EMAIL_USER and EMAIL_PASS in Render env vars:');
+    console.error('   → dashboard.render.com → kaliluni-backend → Environment');
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('');
   }
 
   app.listen(PORT, () => {
@@ -122,6 +134,7 @@ const startServer = async () => {
     console.log('═══════════════════════════════════════════');
     console.log(` Server running on: http://localhost:${PORT}`);
     console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(` Email service: ${isEmailEnabled() ? '✅ enabled' : '❌ disabled'}`);
     console.log('═══════════════════════════════════════════');
     console.log('');
   });
