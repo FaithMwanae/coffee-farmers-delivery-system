@@ -1190,6 +1190,7 @@ textarea:focus-visible,
     background: transparent !important;
   }
 }
+
 /* ============================================
    21. RECEIPT CARD — shared by print + verify
    ============================================ */
@@ -1266,13 +1267,13 @@ textarea:focus-visible,
 .receipt-weight {
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--kl-success);
+  color: var(--kl-text);
   font-variant-numeric: tabular-nums;
 }
 
 .receipt-weight-lg {
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--kl-text);
   font-variant-numeric: tabular-nums;
 }

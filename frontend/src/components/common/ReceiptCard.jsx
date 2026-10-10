@@ -57,15 +57,15 @@ const ReceiptCard = ({
           <span className="receipt-label">
             {cumulativeTotal != null ? 'This Delivery' : 'Weight'}
           </span>
-          <strong className="receipt-weight">{formatWeight(weight)}</strong>
+          <span className="receipt-weight">{formatWeight(weight)}</span>
         </div>
 
         {cumulativeTotal != null && (
           <div className="receipt-row">
             <span className="receipt-label">Cumulative Total</span>
-            <strong className="receipt-value receipt-weight-lg">
+            <span className="receipt-value receipt-weight-lg">
               {formatWeight(cumulativeTotal)}
-            </strong>
+            </span>
           </div>
         )}
 
