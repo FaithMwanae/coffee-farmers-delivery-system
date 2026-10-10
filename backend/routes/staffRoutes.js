@@ -6,6 +6,9 @@ import {
   getChartData,
   getFarmerAdvanceInfo,
   releasePayment,
+  getReleasedPayments,
+  getPaymentsGrouped,
+  bulkReleasePayments,
 } from '../controllers/staffController.js';
 import { authenticate } from '../middleware/auth.js';
 import { allowRoles } from '../middleware/roleCheck.js';
@@ -33,7 +36,13 @@ router.post('/farmers', auditLogger('REGISTER_FARMER', (req) => req.body.name), 
 router.get('/transactions', getAllTransactions);
 router.post('/transactions', auditLogger('RECORD_TRANSACTION', (req) => `${req.body.type} KES ${req.body.amount}`), recordTransaction);
 
+// ============================================
 // Payments
+// Order matters — most specific first
+// ============================================
+router.get('/payments/released', getReleasedPayments);
+router.get('/payments/grouped', getPaymentsGrouped);
+router.post('/payments/bulk', bulkReleasePayments);
 router.get('/payments', getPaymentSchedule);
 router.post(
   '/payments/release/:farmerId',

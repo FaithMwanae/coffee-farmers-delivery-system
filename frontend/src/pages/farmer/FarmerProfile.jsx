@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Container, Card, Form, Button, Spinner, Alert, Row, Col, InputGroup,
+  Container, Card, Form, Button, Spinner, Alert, Row, Col, InputGroup, Badge,
 } from 'react-bootstrap';
 import { useAuth } from '../../contexts/AuthContext';
 import { farmerApi } from '../../api/farmerApi';
@@ -9,13 +9,27 @@ import { validateStrongPassword } from '../../utils/passwordValidator';
 import PasswordStrengthMeter from '../../components/forms/PasswordStrengthMeter';
 import { toast } from 'react-toastify';
 
+const KENYAN_BANKS = [
+  'Equity Bank',
+  'KCB Bank',
+  'Co-operative Bank',
+  'NCBA Bank',
+  'Absa Bank',
+  'Stanbic Bank',
+  'Family Bank',
+  'DTB Bank',
+  'Standard Chartered',
+  'Barclays',
+  'Other',
+];
+
 const FarmerProfile = () => {
   const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Personal info form
+  // Personal info
   const [profile, setProfile] = useState({
     name: '',
     email: '',
@@ -23,6 +37,17 @@ const FarmerProfile = () => {
     location: '',
     memberNo: '',
   });
+
+  // Payment details
+  const [paymentDetails, setPaymentDetails] = useState({
+    mpesaNumber: '',
+    bankName: '',
+    bankAccountNo: '',
+    bankBranch: '',
+    preferredPaymentMethod: 'M-Pesa',
+    paymentDetailsVerified: false,
+  });
+  const [savingPayment, setSavingPayment] = useState(false);
 
   // Password form
   const [passwordForm, setPasswordForm] = useState({
@@ -39,14 +64,29 @@ const FarmerProfile = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await farmerApi.getProfile();
+        const [profileData, paymentData] = await Promise.all([
+          farmerApi.getProfile(),
+          farmerApi.getPaymentDetails().catch(() => null),
+        ]);
+
         setProfile({
-          name: data.name || user?.name || '',
-          email: data.email || user?.email || '',
-          phone: data.phone || '',
-          location: data.location || '',
-          memberNo: data.memberNo || data.member_no || '',
+          name: profileData.name || user?.name || '',
+          email: profileData.email || user?.email || '',
+          phone: profileData.phone || '',
+          location: profileData.location || '',
+          memberNo: profileData.memberNo || profileData.member_no || '',
         });
+
+        if (paymentData) {
+          setPaymentDetails({
+            mpesaNumber: paymentData.mpesaNumber || '',
+            bankName: paymentData.bankName || '',
+            bankAccountNo: paymentData.bankAccountNo || '',
+            bankBranch: paymentData.bankBranch || '',
+            preferredPaymentMethod: paymentData.preferredPaymentMethod || 'M-Pesa',
+            paymentDetailsVerified: paymentData.paymentDetailsVerified || false,
+          });
+        }
       } catch (err) {
         console.error(err);
         setError('Failed to load profile');
@@ -60,10 +100,15 @@ const FarmerProfile = () => {
   const handleProfileChange = (e) =>
     setProfile({ ...profile, [e.target.name]: e.target.value });
 
+  const handlePaymentChange = (e) =>
+    setPaymentDetails({ ...paymentDetails, [e.target.name]: e.target.value });
+
   const handlePasswordChange = (e) =>
     setPasswordForm({ ...passwordForm, [e.target.name]: e.target.value });
 
-  // ------- Save profile -------
+  // ============================================
+  // Save profile
+  // ============================================
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -83,7 +128,50 @@ const FarmerProfile = () => {
     }
   };
 
-  // ------- Change password -------
+  // ============================================
+  // Save payment details
+  // ============================================
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+
+    if (
+      !paymentDetails.mpesaNumber &&
+      !paymentDetails.bankAccountNo &&
+      paymentDetails.preferredPaymentMethod === 'Bank Transfer'
+    ) {
+      toast.error('Please add either an M-Pesa number or bank account');
+      return;
+    }
+
+    setSavingPayment(true);
+    try {
+      const result = await farmerApi.updatePaymentDetails({
+        mpesaNumber: paymentDetails.mpesaNumber,
+        bankName: paymentDetails.bankName,
+        bankAccountNo: paymentDetails.bankAccountNo,
+        bankBranch: paymentDetails.bankBranch,
+        preferredPaymentMethod: paymentDetails.preferredPaymentMethod,
+      });
+
+      // Update local state with response
+      if (result.paymentDetails) {
+        setPaymentDetails({ ...paymentDetails, ...result.paymentDetails });
+      }
+
+      toast.success('Payment details saved — will be verified by staff');
+    } catch (err) {
+      console.error(err);
+      toast.error(
+        err.response?.data?.message || 'Failed to save payment details'
+      );
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
+  // ============================================
+  // Change password
+  // ============================================
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setPasswordError('');
@@ -144,21 +232,19 @@ const FarmerProfile = () => {
     <Container fluid className="px-0">
       <PageHeader
         title="My Profile"
-        subtitle="Manage your personal information and account security"
+        subtitle="Manage your personal information, payment details, and account security"
       />
 
-      <Row className="g-3">
+      <Row className="g-3 mb-3">
         {/* ============================ */}
         {/* PERSONAL INFORMATION */}
         {/* ============================ */}
         <Col lg={7}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white border-bottom" style={{ padding: '14px 20px' }}>
-              <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>
-                Personal Information
-              </span>
+          <Card className="h-100">
+            <Card.Header>
+              <span>Personal Information</span>
             </Card.Header>
-            <Card.Body style={{ padding: '20px' }}>
+            <Card.Body>
               <Form onSubmit={handleProfileSubmit}>
                 <Form.Group className="mb-3">
                   <Form.Label className="small fw-semibold text-secondary">
@@ -167,9 +253,9 @@ const FarmerProfile = () => {
                   <Form.Control
                     value={profile.memberNo}
                     disabled
-                    style={{ fontSize: '0.9rem', background: '#f8f9fa' }}
+                    style={{ background: '#f8f9fa' }}
                   />
-                  <Form.Text className="text-muted" style={{ fontSize: '0.72rem' }}>
+                  <Form.Text className="text-muted">
                     Assigned by the cooperative. Cannot be changed.
                   </Form.Text>
                 </Form.Group>
@@ -183,7 +269,6 @@ const FarmerProfile = () => {
                     value={profile.name}
                     onChange={handleProfileChange}
                     placeholder="Your full name"
-                    style={{ fontSize: '0.9rem' }}
                   />
                 </Form.Group>
 
@@ -194,9 +279,9 @@ const FarmerProfile = () => {
                   <Form.Control
                     value={profile.email}
                     disabled
-                    style={{ fontSize: '0.9rem', background: '#f8f9fa' }}
+                    style={{ background: '#f8f9fa' }}
                   />
-                  <Form.Text className="text-muted" style={{ fontSize: '0.72rem' }}>
+                  <Form.Text className="text-muted">
                     Contact administration to update your email.
                   </Form.Text>
                 </Form.Group>
@@ -210,7 +295,6 @@ const FarmerProfile = () => {
                     value={profile.phone}
                     onChange={handleProfileChange}
                     placeholder="e.g., 0712345678"
-                    style={{ fontSize: '0.9rem' }}
                   />
                 </Form.Group>
 
@@ -223,7 +307,6 @@ const FarmerProfile = () => {
                     value={profile.location}
                     onChange={handleProfileChange}
                     placeholder="e.g., Kathiani"
-                    style={{ fontSize: '0.9rem' }}
                   />
                 </Form.Group>
 
@@ -232,7 +315,6 @@ const FarmerProfile = () => {
                   variant="success"
                   disabled={saving}
                   size="sm"
-                  style={{ fontSize: '0.85rem', padding: '8px 20px' }}
                 >
                   {saving ? (
                     <>
@@ -252,13 +334,11 @@ const FarmerProfile = () => {
         {/* SECURITY & PASSWORD */}
         {/* ============================ */}
         <Col lg={5}>
-          <Card className="border-0 shadow-sm h-100">
-            <Card.Header className="bg-white border-bottom" style={{ padding: '14px 20px' }}>
-              <span className="fw-semibold" style={{ fontSize: '0.9rem' }}>
-                Security & Password
-              </span>
+          <Card className="h-100">
+            <Card.Header>
+              <span>Security & Password</span>
             </Card.Header>
-            <Card.Body style={{ padding: '20px' }}>
+            <Card.Body>
               <Form onSubmit={handlePasswordSubmit}>
                 <Form.Group className="mb-3">
                   <Form.Label className="small fw-semibold text-secondary">
@@ -272,7 +352,6 @@ const FarmerProfile = () => {
                       onChange={handlePasswordChange}
                       placeholder="Enter current password"
                       autoComplete="current-password"
-                      style={{ fontSize: '0.9rem' }}
                     />
                     <Button
                       variant="outline-secondary"
@@ -298,7 +377,6 @@ const FarmerProfile = () => {
                       onChange={handlePasswordChange}
                       placeholder="Enter strong new password"
                       autoComplete="new-password"
-                      style={{ fontSize: '0.9rem' }}
                     />
                     <Button
                       variant="outline-secondary"
@@ -325,7 +403,6 @@ const FarmerProfile = () => {
                       onChange={handlePasswordChange}
                       placeholder="Re-enter new password"
                       autoComplete="new-password"
-                      style={{ fontSize: '0.9rem' }}
                     />
                     <Button
                       variant="outline-secondary"
@@ -339,13 +416,13 @@ const FarmerProfile = () => {
                   </InputGroup>
                   {passwordForm.confirmPassword &&
                     passwordForm.newPassword !== passwordForm.confirmPassword && (
-                      <Form.Text className="text-danger" style={{ fontSize: '0.72rem' }}>
+                      <Form.Text className="text-danger">
                         Passwords do not match
                       </Form.Text>
                     )}
                   {passwordForm.confirmPassword &&
                     passwordForm.newPassword === passwordForm.confirmPassword && (
-                      <Form.Text className="text-success" style={{ fontSize: '0.72rem' }}>
+                      <Form.Text className="text-success">
                         Passwords match
                       </Form.Text>
                     )}
@@ -372,7 +449,6 @@ const FarmerProfile = () => {
                   variant="success"
                   disabled={savingPassword}
                   size="sm"
-                  style={{ fontSize: '0.85rem', padding: '8px 20px' }}
                 >
                   {savingPassword ? (
                     <>
@@ -383,6 +459,171 @@ const FarmerProfile = () => {
                     'Update Password'
                   )}
                 </Button>
+              </Form>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ============================ */}
+      {/* PAYMENT DETAILS */}
+      {/* ============================ */}
+      <Row className="g-3">
+        <Col lg={12}>
+          <Card>
+            <Card.Header className="d-flex justify-content-between align-items-center">
+              <span>
+                <i className="bi bi-credit-card me-2"></i>
+                Payment Details
+              </span>
+              {paymentDetails.paymentDetailsVerified ? (
+                <Badge bg="success" className="fw-normal">
+                  <i className="bi bi-patch-check-fill me-1"></i>Verified
+                </Badge>
+              ) : (
+                <Badge bg="warning" text="dark" className="fw-normal">
+                  <i className="bi bi-clock me-1"></i>Pending Verification
+                </Badge>
+              )}
+            </Card.Header>
+            <Card.Body>
+              <Alert variant="light" className="small border mb-4">
+                <i className="bi bi-info-circle me-1"></i>
+                These details are used to send your payments. Make sure they're correct.
+                Staff will verify them before processing.
+              </Alert>
+
+              <Form onSubmit={handlePaymentSubmit}>
+                {/* Preferred method */}
+                <Form.Group className="mb-4">
+                  <Form.Label className="small fw-semibold text-secondary">
+                    Preferred Payment Method *
+                  </Form.Label>
+                  <div>
+                    <Form.Check
+                      inline
+                      type="radio"
+                      id="pref-mpesa"
+                      name="preferredPaymentMethod"
+                      value="M-Pesa"
+                      label="M-Pesa"
+                      checked={paymentDetails.preferredPaymentMethod === 'M-Pesa'}
+                      onChange={handlePaymentChange}
+                    />
+                    <Form.Check
+                      inline
+                      type="radio"
+                      id="pref-bank"
+                      name="preferredPaymentMethod"
+                      value="Bank Transfer"
+                      label="Bank Transfer"
+                      checked={paymentDetails.preferredPaymentMethod === 'Bank Transfer'}
+                      onChange={handlePaymentChange}
+                    />
+                  </div>
+                </Form.Group>
+
+                <Row className="g-3">
+                  {/* M-Pesa */}
+                  <Col md={6}>
+                    <Card className="h-100 border">
+                      <Card.Body>
+                        <h6 className="fw-semibold mb-3">
+                          <i className="bi bi-phone text-success me-2"></i>
+                          M-Pesa
+                        </h6>
+                        <Form.Group>
+                          <Form.Label className="small fw-semibold text-secondary">
+                            M-Pesa Phone Number
+                          </Form.Label>
+                          <Form.Control
+                            type="tel"
+                            name="mpesaNumber"
+                            value={paymentDetails.mpesaNumber}
+                            onChange={handlePaymentChange}
+                            placeholder="e.g., 0712345678"
+                          />
+                          <Form.Text className="text-muted">
+                            Payments will be sent to this number.
+                          </Form.Text>
+                        </Form.Group>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+
+                  {/* Bank */}
+                  <Col md={6}>
+                    <Card className="h-100 border">
+                      <Card.Body>
+                        <h6 className="fw-semibold mb-3">
+                          <i className="bi bi-bank text-primary me-2"></i>
+                          Bank Account
+                        </h6>
+
+                        <Form.Group className="mb-3">
+                          <Form.Label className="small fw-semibold text-secondary">
+                            Bank Name
+                          </Form.Label>
+                          <Form.Select
+                            name="bankName"
+                            value={paymentDetails.bankName}
+                            onChange={handlePaymentChange}
+                          >
+                            <option value="">Select your bank...</option>
+                            {KENYAN_BANKS.map((b) => (
+                              <option key={b} value={b}>{b}</option>
+                            ))}
+                          </Form.Select>
+                        </Form.Group>
+
+                        <Form.Group className="mb-3">
+                          <Form.Label className="small fw-semibold text-secondary">
+                            Account Number
+                          </Form.Label>
+                          <Form.Control
+                            name="bankAccountNo"
+                            value={paymentDetails.bankAccountNo}
+                            onChange={handlePaymentChange}
+                            placeholder="e.g., 0123456789"
+                          />
+                        </Form.Group>
+
+                        <Form.Group>
+                          <Form.Label className="small fw-semibold text-secondary">
+                            Branch (optional)
+                          </Form.Label>
+                          <Form.Control
+                            name="bankBranch"
+                            value={paymentDetails.bankBranch}
+                            onChange={handlePaymentChange}
+                            placeholder="e.g., Machakos Branch"
+                          />
+                        </Form.Group>
+                      </Card.Body>
+                    </Card>
+                  </Col>
+                </Row>
+
+                <div className="mt-4 d-flex justify-content-end">
+                  <Button
+                    type="submit"
+                    variant="success"
+                    disabled={savingPayment}
+                    size="sm"
+                  >
+                    {savingPayment ? (
+                      <>
+                        <Spinner as="span" animation="border" size="sm" className="me-2" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-check2 me-1"></i>
+                        Save Payment Details
+                      </>
+                    )}
+                  </Button>
+                </div>
               </Form>
             </Card.Body>
           </Card>

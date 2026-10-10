@@ -61,6 +61,21 @@ export const staffApi = {
     return data;
   },
 
+  getPaymentsGrouped: async (groupBy = 'bank') => {
+    const { data } = await client.get('/staff/payments/grouped', {
+      params: { groupBy },
+    });
+    return data;
+  },
+
+  bulkReleasePayments: async (farmerIds, method) => {
+    const { data } = await client.post('/staff/payments/bulk', {
+      farmerIds,
+      method,
+    });
+    return data;
+  },
+
   releasePayment: async (farmerId, payload) => {
     const { data } = await client.post(
       `/staff/payments/release/${farmerId}`,

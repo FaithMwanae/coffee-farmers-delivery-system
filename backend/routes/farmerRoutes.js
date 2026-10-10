@@ -6,6 +6,8 @@ import {
   getAdvanceEligibility,
   requestAdvance,
   getMyAdvances,
+  getPaymentDetails,
+  updatePaymentDetails,
 } from '../controllers/farmerController.js';
 import { authenticate } from '../middleware/auth.js';
 import { allowRoles } from '../middleware/roleCheck.js';
@@ -28,6 +30,12 @@ router.get('/announcements', getAnnouncements);
 router.get('/forms', getForms);
 router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
+
+// ============================================
+// Payment details
+// ============================================
+router.get('/payment-details', getPaymentDetails);
+router.put('/payment-details', updatePaymentDetails);
 
 // ============================================
 // Advance routes

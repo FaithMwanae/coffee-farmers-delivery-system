@@ -44,6 +44,19 @@ export const farmerApi = {
   },
 
   // ============================================
+  // PAYMENT DETAILS
+  // ============================================
+  getPaymentDetails: async () => {
+    const { data } = await client.get('/farmer/payment-details');
+    return data;
+  },
+
+  updatePaymentDetails: async (payload) => {
+    const { data } = await client.put('/farmer/payment-details', payload);
+    return data;
+  },
+
+  // ============================================
   // ANNOUNCEMENTS
   // ============================================
   getAnnouncements: async () => {
@@ -52,7 +65,7 @@ export const farmerApi = {
   },
 
   // ============================================
-  // FORMS — now points to /forms (shared endpoint)
+  // FORMS
   // ============================================
   getForms: async () => {
     const { data } = await client.get('/forms');
@@ -73,7 +86,7 @@ export const farmerApi = {
   },
 
   // ============================================
-  // ENABLE FARMER PROFILE (staff/admin → farmer)
+  // ENABLE FARMER PROFILE
   // ============================================
   enableFarmerProfile: async (payload) => {
     const { data } = await client.post('/farmer/enable', payload);
@@ -81,7 +94,7 @@ export const farmerApi = {
   },
 
   // ============================================
-  // CHANGE PASSWORD (authenticated)
+  // CHANGE PASSWORD
   // ============================================
   changePassword: async ({ currentPassword, newPassword, confirmPassword }) => {
     const { data } = await client.post('/auth/change-password', {

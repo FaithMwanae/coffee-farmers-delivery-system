@@ -818,3 +818,214 @@ export const getChartData = async (req, res) => {
     res.status(500).json({ message: 'Server error loading chart data.' });
   }
 };
+// ============================================
+// GET /api/staff/payments/grouped?groupBy=bank|method
+// Returns farmers grouped by bank name or preferred method for bulk payout
+// ============================================
+export const getPaymentsGrouped = async (req, res) => {
+  try {
+    const groupBy = req.query.groupBy === 'method' ? 'method' : 'bank';
+    const currentYear = new Date().getFullYear();
+
+    const result = await pool.query(
+      `SELECT
+        f.id,
+        f.member_no,
+        f.name,
+        f.phone,
+        f.mpesa_number,
+        f.bank_name,
+        f.bank_account_no,
+        f.bank_branch,
+        f.preferred_payment_method,
+        f.total_delivered,
+        (SELECT rate_per_kg FROM settings LIMIT 1) AS rate,
+        COALESCE(SUM(CASE WHEN t.type = 'Advance' AND t.status = 'Completed' THEN t.amount END), 0) AS advances,
+        COALESCE(SUM(CASE WHEN t.type = 'Deduction' AND t.status = 'Completed' THEN t.amount END), 0) AS deductions,
+        COALESCE(SUM(CASE WHEN t.type = 'Payment' AND t.status = 'Completed' THEN t.amount END), 0) AS payments,
+        COALESCE(SUM(
+          CASE WHEN t.type = 'Payment' AND t.status = 'Completed'
+                    AND EXTRACT(YEAR FROM t.date) = $1
+               THEN t.amount END
+        ), 0) AS paid_this_year
+       FROM farmers f
+       LEFT JOIN transactions t ON t.farmer_id = f.id
+       GROUP BY f.id
+       ORDER BY f.bank_name NULLS LAST, f.member_no`,
+      [currentYear]
+    );
+
+    const groups = {};
+
+    result.rows.forEach((row) => {
+      const gross = Number(row.total_delivered) * Number(row.rate || 80);
+      const advances = Number(row.advances);
+      const deductions = Number(row.deductions);
+      const payments = Number(row.payments);
+      const net = gross - advances - deductions - payments;
+      const paidThisYear = Number(row.paid_this_year);
+
+      // Skip farmers with nothing to pay or already released
+      if (net <= 0 || paidThisYear > 0) return;
+
+      const key =
+        groupBy === 'bank'
+          ? row.bank_name || 'No Bank Account'
+          : row.preferred_payment_method || 'M-Pesa';
+
+      if (!groups[key]) {
+        groups[key] = {
+          groupName: key,
+          farmers: [],
+          totalAmount: 0,
+        };
+      }
+
+      groups[key].farmers.push({
+        id: row.id,
+        memberNo: row.member_no,
+        name: row.name,
+        phone: row.phone,
+        mpesaNumber: row.mpesa_number,
+        bankName: row.bank_name,
+        bankAccountNo: row.bank_account_no,
+        bankBranch: row.bank_branch,
+        preferredPaymentMethod: row.preferred_payment_method,
+        totalWeight: Number(row.total_delivered),
+        gross,
+        advances,
+        deductions,
+        net,
+      });
+
+      groups[key].totalAmount += net;
+    });
+
+    res.json(Object.values(groups));
+  } catch (error) {
+    console.error('Grouped payments error:', error);
+    res.status(500).json({ message: 'Server error loading grouped payments.' });
+  }
+};
+
+// ============================================
+// POST /api/staff/payments/bulk
+// Release payments to multiple farmers at once
+// Body: { farmerIds: [1,2,3], method: 'M-Pesa' }
+// ============================================
+export const bulkReleasePayments = async (req, res) => {
+  const { farmerIds, method } = req.body;
+
+  if (!Array.isArray(farmerIds) || farmerIds.length === 0) {
+    return res.status(400).json({ message: 'Select at least one farmer.' });
+  }
+
+  if (!['M-Pesa', 'Bank Transfer', 'Cash'].includes(method)) {
+    return res.status(400).json({ message: 'Invalid payment method.' });
+  }
+
+  const seasonYear = new Date().getFullYear();
+  const results = { success: [], failed: [] };
+  const bulkRef = `BULK-${Date.now()}`;
+
+  for (const farmerId of farmerIds) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const farmerRes = await client.query(
+        'SELECT id, name, member_no FROM farmers WHERE id = $1',
+        [farmerId]
+      );
+
+      if (farmerRes.rows.length === 0) {
+        throw new Error('Farmer not found');
+      }
+      const farmer = farmerRes.rows[0];
+
+      // Already paid this season?
+      const existing = await client.query(
+        `SELECT id FROM transactions
+         WHERE farmer_id = $1 AND type = 'Payment' AND status = 'Completed'
+           AND EXTRACT(YEAR FROM date) = $2 LIMIT 1`,
+        [farmerId, seasonYear]
+      );
+
+      if (existing.rows.length > 0) {
+        throw new Error('Already paid this season');
+      }
+
+      // Recompute net at commit-time (prevents stale data)
+      const calcRes = await client.query(
+        `SELECT
+           f.total_delivered,
+           (SELECT rate_per_kg FROM settings LIMIT 1) AS rate,
+           COALESCE((SELECT SUM(amount) FROM transactions WHERE farmer_id = f.id AND type = 'Advance' AND status = 'Completed'), 0) AS advances,
+           COALESCE((SELECT SUM(amount) FROM transactions WHERE farmer_id = f.id AND type = 'Deduction' AND status = 'Completed'), 0) AS deductions,
+           COALESCE((SELECT SUM(amount) FROM transactions WHERE farmer_id = f.id AND type = 'Payment' AND status = 'Completed'), 0) AS payments
+         FROM farmers f WHERE f.id = $1`,
+        [farmerId]
+      );
+
+      const c = calcRes.rows[0];
+      const gross = Number(c.total_delivered) * Number(c.rate || 80);
+      const net =
+        gross - Number(c.advances) - Number(c.deductions) - Number(c.payments);
+
+      if (net <= 0) {
+        throw new Error('Nothing to pay');
+      }
+
+      const insert = await client.query(
+        `INSERT INTO transactions
+           (farmer_id, type, amount, description, status,
+            payment_method, reference, approved_by, approved_at)
+         VALUES ($1, 'Payment', $2, $3, 'Completed', $4, $5, $6, NOW())
+         RETURNING id, amount`,
+        [
+          farmerId,
+          net,
+          `Season ${seasonYear} bulk payment`,
+          method,
+          `${bulkRef}-${farmer.member_no}`,
+          req.user.id,
+        ]
+      );
+
+      await client.query('COMMIT');
+
+      results.success.push({
+        farmerId,
+        farmerName: farmer.name,
+        memberNo: farmer.member_no,
+        amount: net,
+        transactionId: insert.rows[0].id,
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      results.failed.push({ farmerId, reason: error.message });
+    } finally {
+      client.release();
+    }
+  }
+
+  await pool.query(
+    `INSERT INTO audit_logs (user_name, role, action, details, ip)
+     VALUES ($1, $2, 'BULK_RELEASE', $3, $4)`,
+    [
+      req.user.name || req.user.email,
+      req.user.role,
+      `Bulk released ${results.success.length} payments via ${method} (batch ${bulkRef})`,
+      req.ip || '127.0.0.1',
+    ]
+  );
+
+  res.json({
+    success: true,
+    message: `Released ${results.success.length} payment${
+      results.success.length === 1 ? '' : 's'
+    }.${results.failed.length ? ` ${results.failed.length} skipped.` : ''}`,
+    batchRef: bulkRef,
+    results,
+  });
+};

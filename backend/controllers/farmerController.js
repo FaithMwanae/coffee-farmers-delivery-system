@@ -186,7 +186,6 @@ export const updateProfile = async (req, res) => {
 
 // ============================================
 // POST /api/farmer/enable
-// Allows any authenticated user to register as a farmer
 // ============================================
 export const enableFarmerProfile = async (req, res) => {
   const { phone, location, coffeeTrees } = req.body;
@@ -252,7 +251,6 @@ export const enableFarmerProfile = async (req, res) => {
 
 // ============================================
 // GET /api/farmer/advances/eligibility
-// Returns how much the logged-in farmer can request as an advance
 // ============================================
 export const getAdvanceEligibility = async (req, res) => {
   try {
@@ -307,7 +305,6 @@ export const getAdvanceEligibility = async (req, res) => {
 
 // ============================================
 // POST /api/farmer/advances/request
-// Farmer submits an advance request
 // ============================================
 export const requestAdvance = async (req, res) => {
   const { amount, purpose } = req.body;
@@ -330,7 +327,6 @@ export const requestAdvance = async (req, res) => {
     }
     const farmer = farmerRes.rows[0];
 
-    // --- Eligibility check inside transaction (prevents race conditions) ---
     const settingsRes = await client.query(
       'SELECT advance_rate_per_kg FROM settings LIMIT 1'
     );
@@ -363,7 +359,6 @@ export const requestAdvance = async (req, res) => {
       });
     }
 
-    // Create the request — status 'Requested' means awaiting CEO approval
     const txRes = await client.query(
       `INSERT INTO transactions
          (farmer_id, type, amount, description, status, requested_by)
@@ -378,7 +373,6 @@ export const requestAdvance = async (req, res) => {
 
     const tx = txRes.rows[0];
 
-    // Audit
     await client.query(
       `INSERT INTO audit_logs (user_name, role, action, details, ip)
        VALUES ($1, $2, 'REQUEST_ADVANCE', $3, $4)`,
@@ -415,7 +409,6 @@ export const requestAdvance = async (req, res) => {
 
 // ============================================
 // GET /api/farmer/advances
-// Farmer's own advance history (all statuses)
 // ============================================
 export const getMyAdvances = async (req, res) => {
   try {
@@ -448,5 +441,120 @@ export const getMyAdvances = async (req, res) => {
   } catch (error) {
     console.error('Get my advances error:', error);
     res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// ============================================
+// GET /api/farmer/payment-details
+// Returns this farmer's saved payment details
+// ============================================
+export const getPaymentDetails = async (req, res) => {
+  try {
+    const farmer = await getFarmerForUser(req.user.id);
+    if (!farmer) {
+      return res.status(404).json({ message: 'Farmer profile not found.' });
+    }
+
+    res.json({
+      mpesaNumber: farmer.mpesa_number || '',
+      bankName: farmer.bank_name || '',
+      bankAccountNo: farmer.bank_account_no || '',
+      bankBranch: farmer.bank_branch || '',
+      preferredPaymentMethod: farmer.preferred_payment_method || 'M-Pesa',
+      paymentDetailsVerified: farmer.payment_details_verified || false,
+    });
+  } catch (error) {
+    console.error('Get payment details error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// ============================================
+// PUT /api/farmer/payment-details
+// Farmer updates their own payment details
+// ============================================
+export const updatePaymentDetails = async (req, res) => {
+  try {
+    const farmer = await getFarmerForUser(req.user.id);
+    if (!farmer) {
+      return res.status(404).json({ message: 'Farmer profile not found.' });
+    }
+
+    const {
+      mpesaNumber,
+      bankName,
+      bankAccountNo,
+      bankBranch,
+      preferredPaymentMethod,
+    } = req.body;
+
+    if (
+      preferredPaymentMethod &&
+      !['M-Pesa', 'Bank Transfer'].includes(preferredPaymentMethod)
+    ) {
+      return res
+        .status(400)
+        .json({ message: 'Preferred method must be M-Pesa or Bank Transfer.' });
+    }
+
+    // Validate M-Pesa number if provided
+    if (mpesaNumber && mpesaNumber.trim()) {
+      const clean = String(mpesaNumber).replace(/\s/g, '');
+      if (!/^(254|0|\+254)\d{9}$/.test(clean)) {
+        return res
+          .status(400)
+          .json({ message: 'Please enter a valid Kenyan M-Pesa number.' });
+      }
+    }
+
+    const result = await pool.query(
+      `UPDATE farmers
+       SET mpesa_number = COALESCE($1, mpesa_number),
+           bank_name = COALESCE($2, bank_name),
+           bank_account_no = COALESCE($3, bank_account_no),
+           bank_branch = COALESCE($4, bank_branch),
+           preferred_payment_method = COALESCE($5, preferred_payment_method),
+           payment_details_verified = FALSE
+       WHERE id = $6
+       RETURNING *`,
+      [
+        mpesaNumber || null,
+        bankName || null,
+        bankAccountNo || null,
+        bankBranch || null,
+        preferredPaymentMethod || null,
+        farmer.id,
+      ]
+    );
+
+    const updated = result.rows[0];
+
+    await pool.query(
+      `INSERT INTO audit_logs (user_name, role, action, details, ip)
+       VALUES ($1, $2, 'UPDATE_PAYMENT_DETAILS', $3, $4)`,
+      [
+        req.user.name || req.user.email,
+        req.user.role,
+        `Updated payment details for ${farmer.member_no}`,
+        req.ip || '127.0.0.1',
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: 'Payment details saved. They will be verified by staff.',
+      paymentDetails: {
+        mpesaNumber: updated.mpesa_number || '',
+        bankName: updated.bank_name || '',
+        bankAccountNo: updated.bank_account_no || '',
+        bankBranch: updated.bank_branch || '',
+        preferredPaymentMethod:
+          updated.preferred_payment_method || 'M-Pesa',
+        paymentDetailsVerified: updated.payment_details_verified || false,
+      },
+    });
+  } catch (error) {
+    console.error('Update payment details error:', error);
+    res.status(500).json({ message: 'Server error saving payment details.' });
   }
 };
