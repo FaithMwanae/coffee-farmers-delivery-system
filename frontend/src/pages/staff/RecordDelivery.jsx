@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Container, Card, Form, Button, Alert, Row, Col, Spinner, Badge } from 'react-bootstrap';
-import { QRCodeSVG } from 'qrcode.react';
 import { staffApi } from '../../api/staffApi';
 import PageHeader from '../../components/common/PageHeader';
 import FarmerSearchSelect from '../../components/forms/FarmerSearchSelect';
+import ReceiptCard from '../../components/common/ReceiptCard';
 import { toast } from 'react-toastify';
 import { formatWeight } from '../../utils/formatters';
 
@@ -227,59 +227,24 @@ const RecordDelivery = () => {
                 </div>
               ) : (
                 <>
-                  {/* PRINTABLE RECEIPT */}
-                  <div className="border rounded p-3 print-receipt" style={{ background: '#fafbfc' }}>
-                    <div className="text-center mb-3">
-                      <h6 className="fw-bold mb-0" style={{ letterSpacing: '1px' }}>
-                        KALILUNI FACTORY
-                      </h6>
-                      <small className="text-muted">Coffee Delivery Receipt</small>
-                    </div>
-                    <hr />
-
-                    <p className="mb-1 small">
-                      <strong>Receipt No:</strong>{' '}
-                      <code>{lastReceipt.receipt || lastReceipt.receipt_no}</code>
-                    </p>
-                    <p className="mb-1 small">
-                      <strong>Farmer:</strong> {lastReceipt.farmerName || lastReceipt.farmer_name}
-                    </p>
-                    <p className="mb-1 small">
-                      <strong>Member No:</strong>{' '}
-                      {lastReceipt.memberNo || lastReceipt.member_no}
-                    </p>
-                    <p className="mb-1 small">
-                      <strong>This Delivery:</strong> {formatWeight(lastReceipt.weight)}
-                    </p>
-                    <p className="mb-1 small">
-                      <strong>Cumulative Total:</strong>{' '}
-                      <span className="fw-bold">{formatWeight(lastReceipt.cumulativeTotal)}</span>
-                    </p>
-                    <p className="mb-1 small">
-                      <strong>Quality:</strong> {lastReceipt.quality}
-                    </p>
-                    <p className="mb-1 small">
-                      <strong>Date:</strong> {new Date().toLocaleDateString('en-GB')}
-                    </p>
-
-                    <hr />
-                    <div className="text-center">
-                      <small className="text-muted">Thank you for your delivery</small>
-                    </div>
-
-                    {/* ⭐ QR CODE — NEW */}
-                    <div className="text-center mt-3">
-                      <QRCodeSVG
-                        value={`${window.location.origin}/verify/${lastReceipt.receipt || lastReceipt.receipt_no}`}
-                        size={100}
-                        level="M"
-                        bgColor="#ffffff"
-                        fgColor="#1a4d2e"
-                      />
-                      <div className="text-muted" style={{ fontSize: '0.65rem', marginTop: '4px' }}>
-                        Scan to verify
-                      </div>
-                    </div>
+                  {/* PRINTABLE RECEIPT — shared component */}
+                  <div className="print-receipt">
+                    <ReceiptCard
+                      variant="print"
+                      showQr
+                      qrValue={`${window.location.origin}/verify/${
+                        lastReceipt.receipt || lastReceipt.receipt_no
+                      }`}
+                      receiptNo={lastReceipt.receipt || lastReceipt.receipt_no}
+                      date={lastReceipt.date || new Date()}
+                      farmerName={lastReceipt.farmerName || lastReceipt.farmer_name}
+                      memberNo={lastReceipt.memberNo || lastReceipt.member_no}
+                      location={lastReceipt.location}
+                      weight={lastReceipt.weight}
+                      cumulativeTotal={lastReceipt.cumulativeTotal}
+                      quality={lastReceipt.quality}
+                      status={lastReceipt.status || 'Processed'}
+                    />
                   </div>
 
                   {/* Cumulative Badge — DARK for uniformity */}
@@ -288,7 +253,8 @@ const RecordDelivery = () => {
                       className="text-white p-2 rounded text-center small fw-semibold"
                       style={{ background: '#1f2937', letterSpacing: '0.3px' }}
                     >
-                      {lastReceipt.farmerName || lastReceipt.farmer_name}'s Total: {formatWeight(lastReceipt.cumulativeTotal)}
+                      {lastReceipt.farmerName || lastReceipt.farmer_name}'s Total:{' '}
+                      {formatWeight(lastReceipt.cumulativeTotal)}
                     </div>
                   </div>
 
@@ -299,6 +265,7 @@ const RecordDelivery = () => {
                     onClick={handlePrint}
                     style={{ fontSize: '0.85rem' }}
                   >
+                    <i className="bi bi-printer me-1"></i>
                     Print Receipt
                   </Button>
                 </>
