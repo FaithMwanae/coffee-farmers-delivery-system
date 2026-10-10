@@ -28,8 +28,8 @@
   /* Text (WCAG AA verified) */
   --kl-text: #111827;
   --kl-text-2: #374151;
-  --kl-muted: #4b5563;         /* 7.5:1 on white — AAA */
-  --kl-muted-2: #6b7280;       /* 4.83:1 — AA */
+  --kl-muted: #4b5563;
+  --kl-muted-2: #6b7280;
 
   /* Semantic */
   --kl-success: #047857;
@@ -165,7 +165,6 @@ hr {
    3. ACCESSIBILITY
    ============================================ */
 
-/* Skip link for screen readers / keyboard nav */
 .skip-link {
   position: absolute;
   top: -100px;
@@ -184,7 +183,6 @@ hr {
   outline: none;
 }
 
-/* Global focus ring — only on keyboard, not mouse */
 :focus-visible {
   outline: 2px solid var(--kl-primary);
   outline-offset: 2px;
@@ -201,12 +199,10 @@ textarea:focus-visible,
   outline-offset: 2px;
 }
 
-/* Remove default outline, we use focus-visible */
 :focus:not(:focus-visible) {
   outline: none;
 }
 
-/* Respect users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -218,7 +214,6 @@ textarea:focus-visible,
   }
 }
 
-/* High contrast mode support */
 @media (prefers-contrast: more) {
   :root {
     --kl-border: #9ca3af;
@@ -484,7 +479,6 @@ textarea:focus-visible,
   transform: none;
 }
 
-/* Primary / Success */
 .btn-success {
   background-color: var(--kl-primary);
   border-color: var(--kl-primary);
@@ -508,7 +502,6 @@ textarea:focus-visible,
   color: #fff;
 }
 
-/* Danger / Berry */
 .btn-danger {
   background-color: var(--kl-accent);
   border-color: var(--kl-accent);
@@ -532,7 +525,6 @@ textarea:focus-visible,
   color: #fff;
 }
 
-/* Neutral */
 .btn-dark {
   background-color: #1f2937;
   border-color: #1f2937;
@@ -554,7 +546,6 @@ textarea:focus-visible,
   color: var(--kl-text);
 }
 
-/* Sizes */
 .btn-sm {
   padding: 6px 12px;
   font-size: var(--fs-sm);
@@ -627,7 +618,6 @@ textarea:focus-visible,
   margin-top: 4px;
 }
 
-/* Checkboxes & radios — bigger target */
 .form-check-input {
   width: 18px;
   height: 18px;
@@ -697,7 +687,6 @@ textarea:focus-visible,
   background-color: var(--kl-primary-soft);
 }
 
-/* Numeric alignment — for money, weights, counts */
 .num,
 .table .num {
   font-variant-numeric: tabular-nums;
@@ -842,7 +831,6 @@ textarea:focus-visible,
 .text-secondary { color: var(--kl-text-2) !important; }
 .fw-semibold { font-weight: var(--fw-semibold) !important; }
 
-/* Skeleton loader for perceived performance */
 .kl-skeleton {
   background: linear-gradient(90deg, #f3f4f6 0%, #e5e7eb 50%, #f3f4f6 100%);
   background-size: 200% 100%;
@@ -855,7 +843,6 @@ textarea:focus-visible,
   100% { background-position: -200% 0; }
 }
 
-/* Empty state */
 .kl-empty {
   text-align: center;
   padding: var(--sp-8) var(--sp-4);
@@ -883,7 +870,7 @@ textarea:focus-visible,
   .form-control,
   .form-select {
     min-height: 44px;
-    font-size: 16px; /* Prevents iOS zoom on focus */
+    font-size: 16px;
   }
 }
 
@@ -929,14 +916,13 @@ textarea:focus-visible,
     padding-right: 12px !important;
   }
 
-  /* Hide sticky headers on mobile — they take too much space */
   .table thead th {
     position: static;
   }
 }
 
 /* ============================================
-   18. PRINT
+   18. PRINT (receipts + vouchers)
    ============================================ */
 @media print {
   body * {
@@ -988,6 +974,7 @@ textarea:focus-visible,
     margin: 5mm;
   }
 }
+
 /* ============================================
    19. AUTH LAYOUT (Login, Register, Forgot, Reset)
    ============================================ */
@@ -998,7 +985,6 @@ textarea:focus-visible,
   background: var(--kl-bg);
 }
 
-/* ---------- Brand panel (left) ---------- */
 .auth-brand {
   position: relative;
   background: linear-gradient(155deg, #1a4d2e 0%, #123a23 60%, #0e2e1c 100%);
@@ -1084,7 +1070,6 @@ textarea:focus-visible,
   letter-spacing: 0.5px;
 }
 
-/* Decorative pattern */
 .auth-brand-pattern {
   position: absolute;
   inset: 0;
@@ -1094,7 +1079,6 @@ textarea:focus-visible,
   pointer-events: none;
 }
 
-/* ---------- Form panel (right) ---------- */
 .auth-form-panel {
   display: flex;
   align-items: center;
@@ -1151,7 +1135,6 @@ textarea:focus-visible,
   text-decoration: underline;
 }
 
-/* ---------- Responsive ---------- */
 @media (max-width: 991px) {
   .auth-shell {
     grid-template-columns: 1fr;
@@ -1175,5 +1158,35 @@ textarea:focus-visible,
   }
   .auth-form-panel {
     padding: 24px 16px;
+  }
+}
+
+/* ============================================
+   20. PAYMENT VOUCHER — print overrides
+   ============================================ */
+@media print {
+  .print-receipt .row {
+    display: flex !important;
+    flex-wrap: wrap !important;
+  }
+  .print-receipt .col-6 {
+    width: 50% !important;
+    flex: 0 0 50% !important;
+    max-width: 50% !important;
+  }
+  .print-receipt strong,
+  .print-receipt .text-success {
+    color: #000 !important;
+  }
+  .print-receipt .text-muted {
+    color: #555 !important;
+  }
+  .print-receipt .border,
+  .print-receipt .rounded {
+    border-color: #000 !important;
+  }
+  .print-receipt .bg-light,
+  .print-receipt [style*="background"] {
+    background: transparent !important;
   }
 }

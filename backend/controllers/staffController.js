@@ -223,7 +223,6 @@ export const getAllFarmers = async (req, res) => {
 
 // ============================================
 // GET /api/staff/farmers/:id/advance-info
-// ⭐ Returns advance eligibility for a farmer
 // ============================================
 export const getFarmerAdvanceInfo = async (req, res) => {
   const farmerId = Number(req.params.id);
@@ -238,18 +237,17 @@ export const getFarmerAdvanceInfo = async (req, res) => {
     }
     const farmer = farmerRes.rows[0];
 
-    // Get advance rate from settings (default 30)
     const settingsRes = await pool.query(
       'SELECT advance_rate_per_kg FROM settings LIMIT 1'
     );
     const rate = Number(settingsRes.rows[0]?.advance_rate_per_kg || 30);
 
-    // Sum all advances (Pending + Completed count against eligibility)
     const advanceRes = await pool.query(
       `SELECT
-         COALESCE(SUM(CASE WHEN status IN ('Pending','Completed') THEN amount END), 0) AS total,
+         COALESCE(SUM(CASE WHEN status IN ('Requested','Pending','Completed') THEN amount END), 0) AS total,
          COALESCE(SUM(CASE WHEN status = 'Completed' THEN amount END), 0) AS approved,
-         COALESCE(SUM(CASE WHEN status = 'Pending' THEN amount END), 0) AS pending
+         COALESCE(SUM(CASE WHEN status = 'Pending' THEN amount END), 0) AS pending,
+         COALESCE(SUM(CASE WHEN status = 'Requested' THEN amount END), 0) AS requested
        FROM transactions
        WHERE farmer_id = $1 AND type = 'Advance'`,
       [farmerId]
@@ -258,6 +256,7 @@ export const getFarmerAdvanceInfo = async (req, res) => {
     const totalAdvanced = Number(advanceRes.rows[0].total);
     const approvedAdvanced = Number(advanceRes.rows[0].approved);
     const pendingAdvanced = Number(advanceRes.rows[0].pending);
+    const requestedAdvanced = Number(advanceRes.rows[0].requested);
 
     const totalDelivered = Number(farmer.total_delivered);
     const eligible = totalDelivered * rate;
@@ -273,6 +272,7 @@ export const getFarmerAdvanceInfo = async (req, res) => {
       totalAdvanced,
       approvedAdvanced,
       pendingAdvanced,
+      requestedAdvanced,
       available,
     });
   } catch (error) {
@@ -292,8 +292,6 @@ export const registerFarmer = async (req, res) => {
       message: 'Name, email, phone, location, and password are required.',
     });
   }
-
-  const numTrees = Number(coffeeTrees || 0);
 
   if (password.length < 6) {
     return res.status(400).json({ message: 'Password must be at least 6 characters.' });
@@ -408,6 +406,9 @@ export const getAllTransactions = async (req, res) => {
       status: t.status,
       paymentMethod: t.payment_method,
       reference: t.reference,
+      requestedBy: t.requested_by,
+      approvedAt: t.approved_at,
+      rejectionReason: t.rejection_reason,
     }));
 
     res.json(mapped);
@@ -419,8 +420,6 @@ export const getAllTransactions = async (req, res) => {
 
 // ============================================
 // POST /api/staff/transactions
-// ✅ Advances: enforced eligibility (kg × advance_rate_per_kg)
-// ✅ Advances: status = 'Pending' (CEO approval)
 // ============================================
 export const recordTransaction = async (req, res) => {
   const { farmerId, type, amount, description } = req.body;
@@ -451,7 +450,6 @@ export const recordTransaction = async (req, res) => {
     }
     const farmer = farmerRes.rows[0];
 
-    // ⭐ ADVANCE VALIDATION — enforce kg-based eligibility
     if (type === 'Advance') {
       const settingsRes = await client.query(
         'SELECT advance_rate_per_kg FROM settings LIMIT 1'
@@ -461,7 +459,8 @@ export const recordTransaction = async (req, res) => {
       const advRes = await client.query(
         `SELECT COALESCE(SUM(amount), 0) AS total
          FROM transactions
-         WHERE farmer_id = $1 AND type = 'Advance' AND status IN ('Pending','Completed')`,
+         WHERE farmer_id = $1 AND type = 'Advance'
+           AND status IN ('Requested','Pending','Completed')`,
         [farmerId]
       );
       const alreadyAdvanced = Number(advRes.rows[0].total);
@@ -481,12 +480,12 @@ export const recordTransaction = async (req, res) => {
       }
     }
 
-    // Advances → Pending (CEO approval required)
     const initialStatus = type === 'Advance' ? 'Pending' : 'Completed';
 
     const result = await client.query(
-      `INSERT INTO transactions (farmer_id, type, amount, description, status)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO transactions
+         (farmer_id, type, amount, description, status, requested_by)
+       VALUES ($1, $2, $3, $4, $5, 'staff')
        RETURNING *`,
       [farmerId, type, amount, description, initialStatus]
     );
@@ -536,7 +535,6 @@ export const recordTransaction = async (req, res) => {
 
 // ============================================
 // GET /api/staff/payments
-// Computes payment schedule + release status per farmer
 // ============================================
 export const getPaymentSchedule = async (req, res) => {
   try {
@@ -601,7 +599,6 @@ export const getPaymentSchedule = async (req, res) => {
 
 // ============================================
 // POST /api/staff/payments/release/:farmerId
-// Records a Completed Payment transaction for a farmer
 // ============================================
 export const releasePayment = async (req, res) => {
   const farmerId = Number(req.params.farmerId);
@@ -633,7 +630,6 @@ export const releasePayment = async (req, res) => {
     }
     const farmer = farmerRes.rows[0];
 
-    // Prevent double-release for the same season
     const existing = await client.query(
       `SELECT id FROM transactions
        WHERE farmer_id = $1
@@ -653,8 +649,9 @@ export const releasePayment = async (req, res) => {
 
     const result = await client.query(
       `INSERT INTO transactions
-         (farmer_id, type, amount, description, status, payment_method, reference)
-       VALUES ($1, 'Payment', $2, $3, 'Completed', $4, $5)
+         (farmer_id, type, amount, description, status,
+          payment_method, reference, approved_by, approved_at)
+       VALUES ($1, 'Payment', $2, $3, 'Completed', $4, $5, $6, NOW())
        RETURNING *`,
       [
         farmerId,
@@ -662,6 +659,7 @@ export const releasePayment = async (req, res) => {
         `Season ${seasonYear} payment`,
         method,
         reference ? String(reference).trim() : null,
+        req.user.id,
       ]
     );
 
@@ -704,6 +702,59 @@ export const releasePayment = async (req, res) => {
     res.status(500).json({ message: 'Server error releasing payment.' });
   } finally {
     client.release();
+  }
+};
+
+// ============================================
+// GET /api/staff/payments/released
+// Payment history — who was paid, how, when
+// ============================================
+export const getReleasedPayments = async (req, res) => {
+  try {
+    const year = Number(req.query.season) || new Date().getFullYear();
+
+    const result = await pool.query(
+      `SELECT
+         t.id,
+         t.farmer_id,
+         t.amount,
+         t.date,
+         t.payment_method,
+         t.reference,
+         t.approved_at,
+         f.member_no,
+         f.name AS farmer_name,
+         f.phone,
+         u.name AS released_by_name
+       FROM transactions t
+       JOIN farmers f ON f.id = t.farmer_id
+       LEFT JOIN users u ON u.id = t.approved_by
+       WHERE t.type = 'Payment'
+         AND t.status = 'Completed'
+         AND EXTRACT(YEAR FROM t.date) = $1
+       ORDER BY t.date DESC, t.id DESC`,
+      [year]
+    );
+
+    res.json(
+      result.rows.map((r) => ({
+        id: r.id,
+        farmerId: r.farmer_id,
+        farmerName: r.farmer_name,
+        memberNo: r.member_no,
+        phone: r.phone,
+        amount: Number(r.amount),
+        date: r.date,
+        method: r.payment_method,
+        reference: r.reference,
+        releasedBy: r.released_by_name,
+        approvedAt: r.approved_at,
+        season: year,
+      }))
+    );
+  } catch (error) {
+    console.error('Released payments error:', error);
+    res.status(500).json({ message: 'Server error.' });
   }
 };
 

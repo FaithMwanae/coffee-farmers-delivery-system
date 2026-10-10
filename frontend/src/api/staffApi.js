@@ -54,6 +54,13 @@ export const staffApi = {
     return data;
   },
 
+  getReleasedPayments: async (season) => {
+    const { data } = await client.get('/staff/payments/released', {
+      params: season ? { season } : {},
+    });
+    return data;
+  },
+
   releasePayment: async (farmerId, payload) => {
     const { data } = await client.post(
       `/staff/payments/release/${farmerId}`,
@@ -74,3 +81,5 @@ export const staffApi = {
     return data;
   },
 };
+
+export default staffApi;
