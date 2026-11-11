@@ -990,7 +990,7 @@ textarea:focus-visible,
   background-color: #1a4d2e;
   background-image: 
     linear-gradient(155deg, rgba(26, 77, 46, 0.85) 0%, rgba(18, 58, 35, 0.95) 100%),
-    url('../assets/coffee-farm.jpg');
+    url('/coffee-farm.jpg'); /* ⭐ Updated for public folder */
   background-size: cover;
   background-position: center;
   color: #fff;
@@ -1143,10 +1143,10 @@ textarea:focus-visible,
 @media (max-width: 991px) {
   .auth-shell {
     grid-template-columns: 1fr;
-    /* ⭐ Add background image for mobile so you can see it on your phone */
+    /* ⭐ Updated mobile background to use the public folder path */
     background-image: 
-      linear-gradient(rgba(245, 246, 248, 0.92), rgba(245, 246, 248, 0.92)),
-      url('../assets/coffee-farm.jpg');
+      linear-gradient(rgba(245, 246, 248, 0.85), rgba(245, 246, 248, 0.95)),
+      url('/coffee-farm.jpg');
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
@@ -1157,7 +1157,7 @@ textarea:focus-visible,
   .auth-form-panel {
     padding: 32px 20px;
     align-items: flex-start;
-    background: transparent; /* Make transparent so the shell's background shows through */
+    background: transparent;
   }
   .auth-form-inner {
     margin-top: 20px;
