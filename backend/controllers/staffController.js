@@ -1,4 +1,5 @@
 import pool from '../config/pool.js';
+import { sendB2CPayment } from '../services/mpesaService.js'; // ⭐ Import M-Pesa service
 
 // ============================================
 // GET /api/staff/dashboard
@@ -605,9 +606,7 @@ export const releasePayment = async (req, res) => {
   const { amount, method, reference, season } = req.body;
 
   if (!farmerId || !amount || !method) {
-    return res
-      .status(400)
-      .json({ message: 'Farmer, amount, and payment method are required.' });
+    return res.status(400).json({ message: 'Farmer, amount, and payment method are required.' });
   }
 
   if (!['M-Pesa', 'Bank Transfer', 'Cash'].includes(method)) {
@@ -621,7 +620,7 @@ export const releasePayment = async (req, res) => {
     await client.query('BEGIN');
 
     const farmerRes = await client.query(
-      'SELECT id, name, member_no FROM farmers WHERE id = $1',
+      'SELECT id, name, member_no, phone FROM farmers WHERE id = $1',
       [farmerId]
     );
     if (farmerRes.rows.length === 0) {
@@ -642,23 +641,40 @@ export const releasePayment = async (req, res) => {
 
     if (existing.rows.length > 0) {
       await client.query('ROLLBACK');
-      return res
-        .status(409)
-        .json({ message: `Payment already released for season ${seasonYear}.` });
+      return res.status(409).json({ message: `Payment already released for season ${seasonYear}.` });
+    }
+
+    // ⭐ M-Pesa Daraja Integration Logic ⭐
+    let initialStatus = 'Completed';
+    let finalReference = reference ? String(reference).trim() : null;
+
+    if (method === 'M-Pesa') {
+      // Send request to Safaricom
+      const mpesaResponse = await sendB2CPayment({
+        phone: farmer.phone,
+        amount: amount,
+        remarks: `Season ${seasonYear} payment`,
+        occasion: farmer.member_no
+      });
+
+      // Safaricom confirms asynchronously via callback. We set status to Pending.
+      initialStatus = 'Pending';
+      finalReference = mpesaResponse.ConversationID; 
     }
 
     const result = await client.query(
       `INSERT INTO transactions
          (farmer_id, type, amount, description, status,
           payment_method, reference, approved_by, approved_at)
-       VALUES ($1, 'Payment', $2, $3, 'Completed', $4, $5, $6, NOW())
+       VALUES ($1, 'Payment', $2, $3, $4, $5, $6, $7, NOW())
        RETURNING *`,
       [
         farmerId,
         amount,
         `Season ${seasonYear} payment`,
+        initialStatus,
         method,
-        reference ? String(reference).trim() : null,
+        finalReference,
         req.user.id,
       ]
     );
@@ -671,9 +687,7 @@ export const releasePayment = async (req, res) => {
       [
         req.user.name || req.user.email,
         req.user.role,
-        `Released KES ${Number(amount).toLocaleString()} to ${farmer.name} (${farmer.member_no}) via ${method}${
-          reference ? ` — Ref: ${reference}` : ''
-        }`,
+        `Released KES ${Number(amount).toLocaleString()} to ${farmer.name} (${farmer.member_no}) via ${method}${reference ? ` — Ref: ${reference}` : ''}`,
         req.ip || '127.0.0.1',
       ]
     );
@@ -682,7 +696,7 @@ export const releasePayment = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Payment released to ${farmer.name}`,
+      message: method === 'M-Pesa' ? `M-Pesa request sent to ${farmer.name}. Awaiting confirmation.` : `Payment released to ${farmer.name}`,
       transaction: {
         id: tx.id,
         farmerId: tx.farmer_id,
@@ -699,7 +713,7 @@ export const releasePayment = async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Release payment error:', error);
-    res.status(500).json({ message: 'Server error releasing payment.' });
+    res.status(500).json({ message: error.message || 'Server error releasing payment.' });
   } finally {
     client.release();
   }
@@ -707,7 +721,6 @@ export const releasePayment = async (req, res) => {
 
 // ============================================
 // GET /api/staff/payments/released
-// Payment history — who was paid, how, when
 // ============================================
 export const getReleasedPayments = async (req, res) => {
   try {
@@ -818,9 +831,9 @@ export const getChartData = async (req, res) => {
     res.status(500).json({ message: 'Server error loading chart data.' });
   }
 };
+
 // ============================================
-// GET /api/staff/payments/grouped?groupBy=bank|method
-// Returns farmers grouped by bank name or preferred method for bulk payout
+// GET /api/staff/payments/grouped
 // ============================================
 export const getPaymentsGrouped = async (req, res) => {
   try {
@@ -865,7 +878,6 @@ export const getPaymentsGrouped = async (req, res) => {
       const net = gross - advances - deductions - payments;
       const paidThisYear = Number(row.paid_this_year);
 
-      // Skip farmers with nothing to pay or already released
       if (net <= 0 || paidThisYear > 0) return;
 
       const key =
@@ -910,8 +922,6 @@ export const getPaymentsGrouped = async (req, res) => {
 
 // ============================================
 // POST /api/staff/payments/bulk
-// Release payments to multiple farmers at once
-// Body: { farmerIds: [1,2,3], method: 'M-Pesa' }
 // ============================================
 export const bulkReleasePayments = async (req, res) => {
   const { farmerIds, method } = req.body;
@@ -934,7 +944,7 @@ export const bulkReleasePayments = async (req, res) => {
       await client.query('BEGIN');
 
       const farmerRes = await client.query(
-        'SELECT id, name, member_no FROM farmers WHERE id = $1',
+        'SELECT id, name, member_no, phone FROM farmers WHERE id = $1',
         [farmerId]
       );
 
@@ -943,7 +953,6 @@ export const bulkReleasePayments = async (req, res) => {
       }
       const farmer = farmerRes.rows[0];
 
-      // Already paid this season?
       const existing = await client.query(
         `SELECT id FROM transactions
          WHERE farmer_id = $1 AND type = 'Payment' AND status = 'Completed'
@@ -955,7 +964,6 @@ export const bulkReleasePayments = async (req, res) => {
         throw new Error('Already paid this season');
       }
 
-      // Recompute net at commit-time (prevents stale data)
       const calcRes = await client.query(
         `SELECT
            f.total_delivered,
@@ -976,18 +984,36 @@ export const bulkReleasePayments = async (req, res) => {
         throw new Error('Nothing to pay');
       }
 
+      // ⭐ M-Pesa Daraja Bulk Integration Logic ⭐
+      let initialStatus = 'Completed';
+      let finalReference = `${bulkRef}-${farmer.member_no}`;
+
+      if (method === 'M-Pesa') {
+        const mpesaResponse = await sendB2CPayment({
+          phone: farmer.phone,
+          amount: net,
+          remarks: `Season ${seasonYear} bulk payment`,
+          occasion: farmer.member_no
+        });
+
+        // Set status to Pending so callback updates it later
+        initialStatus = 'Pending';
+        finalReference = mpesaResponse.ConversationID; 
+      }
+
       const insert = await client.query(
         `INSERT INTO transactions
            (farmer_id, type, amount, description, status,
             payment_method, reference, approved_by, approved_at)
-         VALUES ($1, 'Payment', $2, $3, 'Completed', $4, $5, $6, NOW())
+         VALUES ($1, 'Payment', $2, $3, $4, $5, $6, $7, NOW())
          RETURNING id, amount`,
         [
           farmerId,
           net,
           `Season ${seasonYear} bulk payment`,
+          initialStatus,
           method,
-          `${bulkRef}-${farmer.member_no}`,
+          finalReference,
           req.user.id,
         ]
       );
@@ -1022,10 +1048,52 @@ export const bulkReleasePayments = async (req, res) => {
 
   res.json({
     success: true,
-    message: `Released ${results.success.length} payment${
+    message: `Processed ${results.success.length} payment${
       results.success.length === 1 ? '' : 's'
     }.${results.failed.length ? ` ${results.failed.length} skipped.` : ''}`,
     batchRef: bulkRef,
     results,
   });
+};
+
+// ============================================
+// POST /api/staff/mpesa/callback (Public, no auth)
+// Safaricom hits this URL to confirm payment success/failure
+// ============================================
+export const mpesaCallback = async (req, res) => {
+  const { Result } = req.body;
+
+  if (Result && Result.ResultCode === 0) {
+    const { TransactionID, ConversationID } = Result;
+    
+    // Update the transaction to Completed using the ConversationID we saved earlier
+    await pool.query(
+      `UPDATE transactions 
+       SET status = 'Completed', reference = $1, description = description || ' [M-Pesa TX: ' || $1 || ']'
+       WHERE reference = $2 AND status = 'Pending'`,
+      [TransactionID, ConversationID]
+    );
+    console.log(`✅ M-Pesa Payment Successful: TX ${TransactionID}`);
+  } else {
+    // Payment failed. Mark it as Failed so it can be retried.
+    const conversationId = req.body?.Result?.ConversationID;
+    if (conversationId) {
+      await pool.query(
+        `UPDATE transactions SET status = 'Failed' WHERE reference = $1 AND status = 'Pending'`,
+        [conversationId]
+      );
+    }
+    console.log('❌ M-Pesa Payment Failed:', Result?.ResultDesc);
+  }
+
+  // Safaricom requires a 200 OK response
+  res.json({ ResultCode: 0, ResultDesc: 'Success' });
+};
+
+// ============================================
+// POST /api/staff/mpesa/timeout
+// ============================================
+export const mpesaTimeout = async (req, res) => {
+  console.log('⏰ M-Pesa Request Timed Out:', req.body);
+  res.json({ ResultCode: 0, ResultDesc: 'Success' });
 };
