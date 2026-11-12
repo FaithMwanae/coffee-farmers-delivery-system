@@ -1,56 +1,288 @@
-import express from 'express';
-import {
-  getDashboard, getAllDeliveries, recordDelivery,
-  getAllFarmers, registerFarmer, getAllTransactions,
-  recordTransaction, getPaymentSchedule, getReportSummary,
-  getChartData,
-  getFarmerAdvanceInfo,
-  releasePayment,
-  getReleasedPayments,
-  getPaymentsGrouped,
-  bulkReleasePayments,
-} from '../controllers/staffController.js';
-import { authenticate } from '../middleware/auth.js';
-import { allowRoles } from '../middleware/roleCheck.js';
-import { auditLogger } from '../middleware/auditLogger.js';
-
-const router = express.Router();
-
-router.use(authenticate);
-router.use(allowRoles('staff', 'admin', 'ceo'));
-
-// Dashboard
-router.get('/dashboard', getDashboard);
-router.get('/charts', getChartData);
-
-// Deliveries
-router.get('/deliveries', getAllDeliveries);
-router.post('/deliveries', auditLogger('RECORD_DELIVERY', (req) => `${req.body.weight} kg`), recordDelivery);
-
-// Farmers
-router.get('/farmers', getAllFarmers);
-router.get('/farmers/:id/advance-info', getFarmerAdvanceInfo);
-router.post('/farmers', auditLogger('REGISTER_FARMER', (req) => req.body.name), registerFarmer);
-
-// Transactions
-router.get('/transactions', getAllTransactions);
-router.post('/transactions', auditLogger('RECORD_TRANSACTION', (req) => `${req.body.type} KES ${req.body.amount}`), recordTransaction);
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
+import pool from '../config/pool.js';
+import { generateToken } from '../utils/tokenUtils.js';
+import { sendEmail } from '../config/email.js';
+import { validateStrongPassword } from '../utils/passwordValidator.js';
 
 // ============================================
-// Payments
-// Order matters — most specific first
+// HELPERS
 // ============================================
-router.get('/payments/released', getReleasedPayments);
-router.get('/payments/grouped', getPaymentsGrouped);
-router.post('/payments/bulk', bulkReleasePayments);
-router.get('/payments', getPaymentSchedule);
-router.post(
-  '/payments/release/:farmerId',
-  auditLogger('RELEASE_PAYMENT', (req) => `Farmer #${req.params.farmerId} — KES ${req.body.amount} via ${req.body.method}`),
-  releasePayment
-);
+const mapFarmer = (f) => ({
+  id: f.id, userId: f.user_id, memberNo: f.member_no, name: f.name,
+  phone: f.phone, location: f.location, coffeeTrees: f.coffee_trees,
+  totalDelivered: Number(f.total_delivered || 0), status: f.status, joinDate: f.join_date,
+});
 
-// Reports
-router.get('/reports/summary', getReportSummary);
+const mapUser = (u) => ({
+  id: u.id, name: u.name, email: u.email, role: u.role, status: u.status,
+});
 
-export default router;
+const verifyPassword = async (inputPassword, storedPassword) => {
+  if (!storedPassword) return false;
+  if (typeof storedPassword === 'string' && /^\$2[aby]\$/.test(storedPassword)) {
+    try { return await bcrypt.compare(inputPassword, storedPassword); } 
+    catch (e) { return false; }
+  }
+  return inputPassword === storedPassword;
+};
+
+const isMaintenanceActive = async () => {
+  try {
+    const r = await pool.query('SELECT maintenance_mode, maintenance_start, maintenance_end FROM settings LIMIT 1');
+    if (r.rows.length === 0) return { active: false };
+    const s = r.rows[0];
+    let active = Boolean(s.maintenance_mode);
+    if (s.maintenance_start && s.maintenance_end) {
+      const now = new Date();
+      if (now >= new Date(s.maintenance_start) && now <= new Date(s.maintenance_end)) active = true;
+    }
+    return { active, settings: s };
+  } catch (e) { return { active: false }; }
+};
+
+// ============================================
+// POST /api/auth/login
+// ============================================
+export const login = async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ message: 'Email and password are required.' });
+
+  try {
+    const cleanEmail = email.toLowerCase().trim();
+    const r = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1', [cleanEmail]);
+    if (r.rows.length === 0) return res.status(401).json({ message: 'Invalid email or password.' });
+    
+    const user = r.rows[0];
+    if (user.status !== 'Active') return res.status(403).json({ message: 'Account is deactivated. Contact admin.' });
+
+    const isMatch = await verifyPassword(password, user.password);
+    if (!isMatch) return res.status(401).json({ message: 'Invalid email or password.' });
+
+    const maintenance = await isMaintenanceActive();
+    if (maintenance.active && !['admin', 'ceo'].includes(user.role)) {
+      return res.status(503).json({ message: 'System under maintenance. Only admins can log in.', maintenance: true });
+    }
+
+    await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [user.id]);
+    const token = generateToken({ id: user.id, email: user.email, role: user.role, name: user.name });
+
+    let profile = null;
+    const f = await pool.query('SELECT * FROM farmers WHERE user_id = $1', [user.id]);
+    if (f.rows.length > 0) profile = mapFarmer(f.rows[0]);
+
+    await pool.query(
+      `INSERT INTO audit_logs (user_name, role, action, details, ip) VALUES ($1, $2, 'LOGIN', 'Successful login', $3)`,
+      [user.name, user.role, req.ip || '127.0.0.1']
+    );
+
+    return res.status(200).json({ success: true, token, user: { ...mapUser(user), profile } });
+  } catch (error) {
+    console.error('Login error:', error);
+    return res.status(500).json({ message: 'Server error during login.' });
+  }
+};
+
+// ============================================
+// GET /api/auth/me
+// ============================================
+export const getCurrentUser = async (req, res) => {
+  try {
+    const r = await pool.query('SELECT id, name, email, role, status FROM users WHERE id = $1', [req.user.id]);
+    if (r.rows.length === 0) return res.status(404).json({ message: 'User not found.' });
+    const user = r.rows[0];
+
+    let profile = null;
+    const f = await pool.query('SELECT * FROM farmers WHERE user_id = $1', [user.id]);
+    if (f.rows.length > 0) profile = mapFarmer(f.rows[0]);
+
+    res.json({ ...mapUser(user), profile });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// ============================================
+// POST /api/auth/forgot-password
+// ============================================
+export const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ message: 'Email is required.' });
+
+  const cleanEmail = email.toLowerCase().trim();
+  let generatedCode = null;
+
+  try {
+    const r = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1', [cleanEmail]);
+    
+    // We only generate and send the code if the user exists
+    if (r.rows.length > 0) {
+      const user = r.rows[0];
+      generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+      // Invalidate previous codes
+      await pool.query('UPDATE password_resets SET used = TRUE WHERE LOWER(email) = $1 AND used = FALSE', [cleanEmail]);
+      
+      const uniqueToken = crypto.randomBytes(16).toString('hex');
+      await pool.query(
+        `INSERT INTO password_resets (email, code, token, expires_at, used) VALUES ($1, $2, $3, $4, FALSE)`,
+        [cleanEmail, generatedCode, uniqueToken, expiresAt]
+      );
+
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px;">
+          <div style="text-align: center; padding-bottom: 16px; border-bottom: 2px solid #1a4d2e;">
+            <h2 style="color: #1a4d2e; margin: 0; letter-spacing: 2px;">KALILUNI</h2>
+            <p style="color: #c8952b; margin: 4px 0 0; font-size: 11px; letter-spacing: 2px;">COFFEE MANAGEMENT SYSTEM</p>
+          </div>
+          <p style="margin-top: 24px;">Hello <strong>${user.name}</strong>,</p>
+          <p>We received a request to reset your password. Use this verification code to continue:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <div style="display: inline-block; padding: 18px 40px; background: #f0f4f1; border: 2px dashed #1a4d2e; border-radius: 8px;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1a4d2e; font-family: 'Courier New', monospace;">${generatedCode}</span>
+            </div>
+          </div>
+          <p style="font-size: 14px; color: #6b7280;">⏰ This code expires in <strong>10 minutes</strong>.</p>
+          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+          <p style="font-size: 12px; color: #9ca3af; text-align: center;">Kaliluni Farmers Co-operative Society<br />This is an automated message. Do not reply.</p>
+        </div>
+      `;
+
+      await sendEmail({
+        to: user.email,
+        subject: 'Kaliluni — Password Reset Verification Code',
+        html,
+      });
+    }
+
+    const response = { success: true, message: 'If that email exists, a 6-digit code has been sent.' };
+    if (process.env.NODE_ENV === 'development' && generatedCode) {
+      response.devCode = generatedCode;
+    }
+    return res.json(response);
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// ============================================
+// POST /api/auth/verify-reset-code
+// ============================================
+export const verifyResetCode = async (req, res) => {
+  const { email, code } = req.body;
+  if (!email || !code) return res.status(400).json({ valid: false, message: 'Email and code are required.' });
+
+  const cleanEmail = email.toLowerCase().trim();
+  try {
+    const r = await pool.query(
+      `SELECT * FROM password_resets WHERE LOWER(email) = $1 AND code = $2 AND used = FALSE AND expires_at > NOW() ORDER BY id DESC LIMIT 1`,
+      [cleanEmail, code]
+    );
+    if (r.rows.length === 0) return res.json({ valid: false, message: 'Invalid or expired code.' });
+    
+    const user = await pool.query('SELECT name FROM users WHERE LOWER(email) = $1', [cleanEmail]);
+    return res.json({ valid: true, email: cleanEmail, name: user.rows[0]?.name || 'User' });
+  } catch (error) {
+    return res.status(500).json({ valid: false, message: 'Server error.' });
+  }
+};
+
+// ============================================
+// POST /api/auth/reset-password
+// ============================================
+export const resetPassword = async (req, res) => {
+  const { email, code, password, confirmPassword } = req.body;
+  if (!email || !code || !password || !confirmPassword) return res.status(400).json({ message: 'All fields are required.' });
+  if (password !== confirmPassword) return res.status(400).json({ message: 'Passwords do not match.' });
+
+  const passCheck = validateStrongPassword(password);
+  if (!passCheck.isValid) return res.status(400).json({ message: passCheck.message, details: passCheck.errors });
+
+  const cleanEmail = email.toLowerCase().trim();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const r = await client.query(
+      `SELECT * FROM password_resets WHERE LOWER(email) = $1 AND code = $2 AND used = FALSE AND expires_at > NOW() ORDER BY id DESC LIMIT 1`,
+      [cleanEmail, code]
+    );
+    if (r.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Invalid or expired code.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const u = await client.query(
+      `UPDATE users SET password = $1 WHERE LOWER(email) = $2 RETURNING id, name, role, email`,
+      [hashedPassword, cleanEmail]
+    );
+
+    await client.query('UPDATE password_resets SET used = TRUE WHERE LOWER(email) = $1', [cleanEmail]);
+    await client.query(
+      `INSERT INTO audit_logs (user_name, role, action, details, ip) VALUES ($1, $2, 'PASSWORD_RESET', 'Password reset via email code', $3)`,
+      [u.rows[0].name, u.rows[0].role, req.ip || '127.0.0.1']
+    );
+
+    await client.query('COMMIT');
+    return res.json({ success: true, message: 'Password reset successful. Please sign in.' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(500).json({ message: 'Server error.' });
+  } finally {
+    client.release();
+  }
+};
+
+// ============================================
+// POST /api/auth/change-password
+// ============================================
+export const changePassword = async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ message: 'Current and new password are required.' });
+  if (confirmPassword && newPassword !== confirmPassword) return res.status(400).json({ message: 'New passwords do not match.' });
+
+  const passCheck = validateStrongPassword(newPassword);
+  if (!passCheck.isValid) return res.status(400).json({ message: passCheck.message, details: passCheck.errors });
+
+  try {
+    const r = await pool.query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+    if (r.rows.length === 0) return res.status(404).json({ message: 'User not found.' });
+    const user = r.rows[0];
+
+    const isMatch = await verifyPassword(currentPassword, user.password);
+    if (!isMatch) return res.status(400).json({ message: 'Current password does not match.' });
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, user.id]);
+    await pool.query(
+      `INSERT INTO audit_logs (user_name, role, action, details, ip) VALUES ($1, $2, 'PASSWORD_CHANGE', 'Password changed', $3)`,
+      [user.name, user.role, req.ip || '127.0.0.1']
+    );
+
+    res.json({ success: true, message: 'Password updated successfully!' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// ============================================
+// GET /api/auth/maintenance-status
+// ============================================
+export const getMaintenanceStatus = async (req, res) => {
+  try {
+    const r = await pool.query(`SELECT maintenance_mode, maintenance_message, maintenance_start, maintenance_end FROM settings LIMIT 1`);
+    if (r.rows.length === 0) return res.json({ active: false });
+    const s = r.rows[0];
+    let active = Boolean(s.maintenance_mode);
+    if (s.maintenance_start && s.maintenance_end) {
+      const now = new Date();
+      if (now >= new Date(s.maintenance_start) && now <= new Date(s.maintenance_end)) active = true;
+    }
+    res.json({ active, message: s.maintenance_message, start: s.maintenance_start, end: s.maintenance_end });
+  } catch (error) {
+    res.json({ active: false });
+  }
+};
