@@ -1368,3 +1368,27 @@ textarea:focus-visible,
     border: 1px dashed #666;
   }
 }
+
+/* ============================================
+   22. MOBILE DATA TABLE FIX
+   ============================================ */
+@media (max-width: 768px) {
+  /* Make tables scroll horizontally on mobile */
+  .table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .table {
+    min-width: 700px; /* Forces the table to be wide enough so columns don't squish */
+  }
+
+  /* Fix the search bar taking up too much space */
+  .card-body .input-group,
+  .card-body .form-control {
+    max-width: 100% !important;
+    margin-bottom: 1rem;
+  }
+}

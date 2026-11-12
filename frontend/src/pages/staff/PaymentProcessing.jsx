@@ -107,7 +107,6 @@ const PaymentProcessing = () => {
     if (!hasPending) return;
 
     const interval = setInterval(() => {
-      // Silently refresh in the background
       loadReleased(true); 
     }, 10000); // Every 10 seconds
 
@@ -183,7 +182,6 @@ const PaymentProcessing = () => {
 
       await Promise.all([loadPending(), loadReleased()]);
       
-      // If M-Pesa, switch to released tab automatically so they can see the pending status
       if (method === 'M-Pesa') {
         setTab('released');
       }
@@ -275,16 +273,23 @@ const PaymentProcessing = () => {
     [payments]
   );
 
+  // ⭐ Updated to track both Completed and Pending totals
   const releasedTotals = useMemo(
     () =>
       released.reduce(
         (acc, p) => {
-          if (p.status !== 'Completed') return acc;
-          acc.total += Number(p.amount) || 0;
-          acc.byMethod[p.method] = (acc.byMethod[p.method] || 0) + Number(p.amount);
+          const amt = Number(p.amount) || 0;
+          
+          if (p.status === 'Completed') {
+            acc.completedTotal += amt;
+            acc.byMethod[p.method] = (acc.byMethod[p.method] || 0) + amt;
+          } else if (p.status === 'Pending') {
+            acc.pendingTotal += amt;
+          }
+          
           return acc;
         },
-        { total: 0, byMethod: {} }
+        { completedTotal: 0, pendingTotal: 0, byMethod: {} }
       ),
     [released]
   );
@@ -462,8 +467,8 @@ const PaymentProcessing = () => {
             </>
           ) : (
             <>
-              <Col xs={6} lg={3}><StatsCard title="Total Paid" value={formatCurrency(releasedTotals.total)} subtitle={`${released.length} payment${released.length === 1 ? '' : 's'}`} color="success" icon="bi-check-circle" /></Col>
-              <Col xs={6} lg={3}><StatsCard title="Via M-Pesa" value={formatCurrency(releasedTotals.byMethod['M-Pesa'] || 0)} subtitle="Mobile money" color="success" icon="bi-phone" /></Col>
+              <Col xs={6} lg={3}><StatsCard title="Total Paid" value={formatCurrency(releasedTotals.completedTotal)} subtitle={`${released.filter(p => p.status === 'Completed').length} completed`} color="success" icon="bi-check-circle" /></Col>
+              <Col xs={6} lg={3}><StatsCard title="Pending M-Pesa" value={formatCurrency(releasedTotals.pendingTotal)} subtitle={`${released.filter(p => p.status === 'Pending').length} awaiting`} color="warning" icon="bi-hourglass-split" /></Col>
               <Col xs={6} lg={3}><StatsCard title="Via Bank" value={formatCurrency(releasedTotals.byMethod['Bank Transfer'] || 0)} subtitle="Bank transfers" color="primary" icon="bi-bank" /></Col>
               <Col xs={6} lg={3}><StatsCard title="Via Cash" value={formatCurrency(releasedTotals.byMethod['Cash'] || 0)} subtitle="Cash payouts" color="warning" icon="bi-cash" /></Col>
             </>
