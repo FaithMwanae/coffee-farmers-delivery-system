@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'VITE_API_URL=https://kaliluni-backend.onrender.com/api';
+//  FIX: Corrected the fallback URL string
+const API_URL = import.meta.env.VITE_API_URL || 'https://kaliluni-backend.onrender.com/api';
 
 const client = axios.create({
   baseURL: API_URL,
@@ -12,6 +13,11 @@ const client = axios.create({
 // Attach JWT token to every request automatically
 client.interceptors.request.use(
   (config) => {
+    // ⭐ FIX: DO NOT send old tokens when trying to login or register
+    if (config.url.includes('/auth/login') || config.url.includes('/auth/register')) {
+      return config;
+    }
+
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
