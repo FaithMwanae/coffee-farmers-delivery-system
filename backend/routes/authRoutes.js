@@ -1,65 +1,24 @@
 import express from 'express';
 import {
-  getDashboard, getAllDeliveries, recordDelivery,
-  getAllFarmers, registerFarmer, getAllTransactions,
-  recordTransaction, getPaymentSchedule, getReportSummary,
-  getChartData,
-  getFarmerAdvanceInfo,
-  releasePayment,
-  getReleasedPayments,
-  getPaymentsGrouped,
-  bulkReleasePayments,
-  mpesaCallback,  // ⭐ Import Callback
-  mpesaTimeout,   // ⭐ Import Timeout
-} from '../controllers/staffController.js';
+  login, register, getCurrentUser, forgotPassword,
+  verifyResetCode, resetPassword, handleResetLink, changePassword,
+  getMaintenanceStatus,
+} from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
-import { allowRoles } from '../middleware/roleCheck.js';
-import { auditLogger } from '../middleware/auditLogger.js';
 
 const router = express.Router();
 
-// ============================================
-// ⭐ PUBLIC M-PESA CALLBACK ROUTES ⭐
-// MUST be above authenticate() so Safaricom can reach them
-// ============================================
-router.post('/mpesa/callback', mpesaCallback);
-router.post('/mpesa/timeout', mpesaTimeout);
+// Public routes
+router.post('/login', login);
+router.post('/register', register);
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-reset-code', verifyResetCode);
+router.post('/reset-password', resetPassword);
+router.get('/reset-link/:token', handleResetLink);
+router.get('/maintenance-status', getMaintenanceStatus);
 
-// ============================================
-// AUTHENTICATED ROUTES
-// ============================================
-router.use(authenticate);
-router.use(allowRoles('staff', 'admin', 'ceo'));
-
-// Dashboard
-router.get('/dashboard', getDashboard);
-router.get('/charts', getChartData);
-
-// Deliveries
-router.get('/deliveries', getAllDeliveries);
-router.post('/deliveries', auditLogger('RECORD_DELIVERY', (req) => `${req.body.weight} kg`), recordDelivery);
-
-// Farmers
-router.get('/farmers', getAllFarmers);
-router.get('/farmers/:id/advance-info', getFarmerAdvanceInfo);
-router.post('/farmers', auditLogger('REGISTER_FARMER', (req) => req.body.name), registerFarmer);
-
-// Transactions
-router.get('/transactions', getAllTransactions);
-router.post('/transactions', auditLogger('RECORD_TRANSACTION', (req) => `${req.body.type} KES ${req.body.amount}`), recordTransaction);
-
-// Payments
-router.get('/payments/released', getReleasedPayments);
-router.get('/payments/grouped', getPaymentsGrouped);
-router.post('/payments/bulk', bulkReleasePayments);
-router.get('/payments', getPaymentSchedule);
-router.post(
-  '/payments/release/:farmerId',
-  auditLogger('RELEASE_PAYMENT', (req) => `Farmer #${req.params.farmerId} — KES ${req.body.amount} via ${req.body.method}`),
-  releasePayment
-);
-
-// Reports
-router.get('/reports/summary', getReportSummary);
+// Authenticated routes
+router.get('/me', authenticate, getCurrentUser);
+router.post('/change-password', authenticate, changePassword);
 
 export default router;
