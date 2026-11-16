@@ -9,8 +9,8 @@ import {
   getReleasedPayments,
   getPaymentsGrouped,
   bulkReleasePayments,
-  mpesaCallback,  // ⭐ Import M-Pesa Callback
-  mpesaTimeout,   // ⭐ Import M-Pesa Timeout
+  mpesaCallback,  // Import M-Pesa Callback
+  mpesaTimeout,   // Import M-Pesa Timeout
 } from '../controllers/staffController.js';
 import { authenticate } from '../middleware/auth.js';
 import { allowRoles } from '../middleware/roleCheck.js';
@@ -19,7 +19,7 @@ import { auditLogger } from '../middleware/auditLogger.js';
 const router = express.Router();
 
 // ============================================
-// ⭐ PUBLIC M-PESA CALLBACK ROUTES ⭐
+//  PUBLIC M-PESA CALLBACK ROUTES
 // MUST be above authenticate() so Safaricom can reach them
 // without a JWT token.
 // ============================================
@@ -65,5 +65,5 @@ router.post(
 // Reports
 router.get('/reports/summary', getReportSummary);
 
-// ⭐ THIS IS THE LINE THAT WAS MISSING ⭐
+
 export default router;
