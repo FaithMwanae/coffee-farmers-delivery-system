@@ -1,6 +1,15 @@
 import client from './client';
 
 export const staffApi = {
+    // Inputs
+  getAllInputs: async () => {
+    const { data } = await client.get('/staff/inputs');
+    return data;
+  },
+  recordInput: async (payload) => {
+    const { data } = await client.post('/staff/inputs', payload);
+    return data;
+  },
   // Dashboard
   getDashboardStats: async () => {
     const { data } = await client.get('/staff/dashboard');

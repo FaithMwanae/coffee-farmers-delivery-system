@@ -13,7 +13,7 @@ import announcementRoutes from './routes/announcementRoutes.js';
 import ceoRoutes from './routes/ceoRoutes.js';
 import formsRoutes from './routes/formsRoutes.js';
 import verifyRoutes from './routes/verifyRoutes.js';
-
+import inputRoutes from './routes/inputRoutes.js';
 import { initEmailService, isEmailEnabled } from './config/email.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
@@ -60,7 +60,7 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
-
+app.use('/api/staff/inputs', inputRoutes);
 // Serve uploaded files (forms, avatars, etc.)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

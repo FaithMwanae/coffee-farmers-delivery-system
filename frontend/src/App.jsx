@@ -3,7 +3,7 @@ import { ToastContainer } from 'react-toastify';
 
 import AuthLayout from './layouts/AuthLayout';
 import DashboardLayout from './layouts/DashboardLayout';
-
+import InputManagement from './pages/staff/InputManagement';
 // Public pages
 import VerifyReceipt from './pages/public/VerifyReceipt';
 
@@ -73,6 +73,14 @@ function App() {
         {/* ⭐ RECEIPT VERIFICATION — public, no auth needed */}
         <Route path="/verify/:receipt" element={<VerifyReceipt />} />
 
+        <Route
+  path="/staff/inputs"
+  element={
+    <ProtectedRoute allowedRoles={['staff', 'admin', 'ceo']}>
+      <InputManagement />
+    </ProtectedRoute>
+ }
+/>
         {/* ============ PROTECTED ROUTES ============ */}
         <Route element={<DashboardLayout />}>
           {/* ----- FARMER ----- */}
