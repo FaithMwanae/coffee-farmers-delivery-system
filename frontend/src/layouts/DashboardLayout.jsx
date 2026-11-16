@@ -27,7 +27,6 @@ const DashboardLayout = () => {
 
   // ============================================
   // Badge counter — CEO only
-  // Fetches pending advance count and refreshes every 60s
   // ============================================
   useEffect(() => {
     const isCeo = user?.role === 'ceo' || user?.role === 'admin';
@@ -38,7 +37,7 @@ const DashboardLayout = () => {
         const data = await ceoApi.getPendingAdvances();
         setPendingAdvances(Array.isArray(data) ? data.length : 0);
       } catch (err) {
-        // silent — don't spam toasts for background polling
+        // silent error
       }
     };
 
@@ -81,6 +80,7 @@ const DashboardLayout = () => {
             { label: 'Dashboard', route: '/staff/dashboard', icon: 'bi-speedometer2' },
             { label: 'Record Delivery', route: '/staff/record-delivery', icon: 'bi-box-seam' },
             { label: 'Farmer Management', route: '/staff/farmers', icon: 'bi-people' },
+            { label: 'Farm Inputs', route: '/staff/inputs', icon: 'bi-box' }, // ⭐ ADDED THIS LINE
           ],
         },
         {
@@ -146,7 +146,7 @@ const DashboardLayout = () => {
   };
 
   // ============================================
-  // SIDEBAR FOOTER — Switch view logic
+  // SIDEBAR FOOTER
   // ============================================
   const renderSidebarFooter = () => {
     const accountRole = user?.role;
@@ -239,11 +239,7 @@ const DashboardLayout = () => {
                   <i className={`bi ${item.icon}`}></i>
                   <span className="flex-grow-1">{item.label}</span>
                   {showBadge && (
-                    <Badge
-                      bg="danger"
-                      pill
-                      style={{ fontSize: '0.65rem', padding: '3px 7px' }}
-                    >
+                    <Badge bg="danger" pill style={{ fontSize: '0.65rem', padding: '3px 7px' }}>
                       {pendingAdvances}
                     </Badge>
                   )}
@@ -281,11 +277,7 @@ const DashboardLayout = () => {
       </div>
 
       {/* Mobile Sidebar */}
-      <Offcanvas
-        show={showSidebar}
-        onHide={() => setShowSidebar(false)}
-        style={{ width: '280px', padding: 0 }}
-      >
+      <Offcanvas show={showSidebar} onHide={() => setShowSidebar(false)} style={{ width: '280px', padding: 0 }}>
         <Offcanvas.Body className="p-0">
           <SidebarContent />
         </Offcanvas.Body>
@@ -297,12 +289,7 @@ const DashboardLayout = () => {
         <div className="kl-topbar">
           <button
             className="btn btn-sm d-lg-none"
-            style={{
-              background: 'var(--kl-primary)',
-              color: '#fff',
-              border: 'none',
-              padding: '6px 12px',
-            }}
+            style={{ background: 'var(--kl-primary)', color: '#fff', border: 'none', padding: '6px 12px' }}
             onClick={() => setShowSidebar(true)}
             aria-label="Open navigation menu"
           >
@@ -312,25 +299,13 @@ const DashboardLayout = () => {
           <div className="flex-grow-1"></div>
 
           <Dropdown align="end">
-            <Dropdown.Toggle
-              as="button"
-              className="kl-user-chip"
-              id="user-menu"
-              aria-label="User menu"
-            >
+            <Dropdown.Toggle as="button" className="kl-user-chip" id="user-menu" aria-label="User menu">
               <div className="kl-user-avatar">{getInitials(user?.name)}</div>
               <div className="d-none d-sm-block text-start">
                 <div style={{ fontSize: '0.85rem', fontWeight: 600, lineHeight: 1.2 }}>
                   {user?.name || 'User'}
                 </div>
-                <div
-                  style={{
-                    fontSize: '0.7rem',
-                    color: 'var(--kl-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                  }}
-                >
+                <div style={{ fontSize: '0.7rem', color: 'var(--kl-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   {currentView}
                 </div>
               </div>
