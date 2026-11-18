@@ -176,16 +176,19 @@ const FarmerDashboard = () => {
                     <tr>
                       <th>Date</th>
                       <th>Input</th>
-                      <th>Quantity</th>
                       <th>Status</th>
+                      <th>Paid Upfront</th>
+                      <th>Deducted</th>
                     </tr>
                   </thead>
                   <tbody>
                     {inputs.map((input) => (
                       <tr key={input.id}>
                         <td className="text-muted small">{formatDate(input.date)}</td>
-                        <td className="fw-semibold">{input.input_type}</td>
-                        <td>{input.quantity} {input.unit}</td>
+                        <td className="fw-semibold">
+                          {input.input_type} <br/>
+                          <small className="text-muted">{input.quantity} {input.unit}</small>
+                        </td>
                         <td>
                           <Badge bg={
                             input.status === 'Issued' ? 'success' : 
@@ -194,6 +197,15 @@ const FarmerDashboard = () => {
                           } text={input.status === 'Requested' ? 'dark' : undefined}>
                             {input.status}
                           </Badge>
+                        </td>
+                        {/* ⭐ Show Payment Details once Issued */}
+                        <td className="text-success fw-bold">
+                          {input.status === 'Issued' 
+                            ? `${formatCurrency(input.upfront_amount)} (${input.upfront_payment_method || 'Cash'})` 
+                            : '—'}
+                        </td>
+                        <td className="text-danger fw-semibold">
+                          {input.status === 'Issued' ? formatCurrency(input.deducted_amount) : '—'}
                         </td>
                       </tr>
                     ))}

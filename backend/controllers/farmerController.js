@@ -17,7 +17,6 @@ export const getDashboard = async (req, res) => {
       [farmer.id]
     );
 
-    // ⭐ FIXED: Include Deductions and Payments in the calculation
     const txResult = await pool.query(
       `SELECT
         COALESCE(SUM(CASE WHEN type = 'Advance' AND status = 'Completed' THEN amount END), 0) AS advances,
@@ -50,7 +49,7 @@ export const getDashboard = async (req, res) => {
     res.json({
       season: '2026',
       totalDeliveries: totalDelivered,
-      pendingPayment: Math.max(0, pendingPayment), // Prevent negative display
+      pendingPayment: Math.max(0, pendingPayment), 
       advancesTaken: Number(advances),
       totalPaid: Number(payments),
       recentDeliveries: mappedDeliveries,
@@ -219,7 +218,6 @@ export const enableFarmerProfile = async (req, res) => {
       });
     }
 
-    // ⭐ FIXED: Use user.id to prevent duplicate member_no crashes
     const memberNo = `KFCS-${String(100 + req.user.id).padStart(5, '0')}`;
 
     const result = await pool.query(
@@ -591,8 +589,10 @@ export const getMyInputs = async (req, res) => {
     const farmer = await getFarmerForUser(req.user.id);
     if (!farmer) return res.status(404).json({ message: 'Farmer profile not found.' });
 
+    // ⭐ FIXED: Fetch the financial details and payment method
     const result = await pool.query(
-      `SELECT id, input_type, description, quantity, unit, total_cost, status, date 
+      `SELECT id, input_type, description, quantity, unit, total_cost, status, date,
+              upfront_amount, deducted_amount, upfront_payment_method
        FROM inputs WHERE farmer_id = $1 ORDER BY date DESC`,
       [farmer.id]
     );
