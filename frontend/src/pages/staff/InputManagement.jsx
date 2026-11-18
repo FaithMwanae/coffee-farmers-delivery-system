@@ -4,7 +4,6 @@ import { staffApi } from '../../api/staffApi';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import DataTable from '../../components/common/DataTable';
 import PageHeader from '../../components/common/PageHeader';
-import StatsCard from '../../components/common/StatsCard';
 import { toast } from 'react-toastify';
 
 const InputManagement = () => {
@@ -12,6 +11,9 @@ const InputManagement = () => {
   const [inputs, setInputs] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // ⭐ NEW: Store the default percentage from Admin settings
+  const [defaultPercentage, setDefaultPercentage] = useState(25);
+
   // Issue Modal
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -31,7 +33,17 @@ const InputManagement = () => {
     }
   };
 
-  useEffect(() => { loadData(); }, []);
+  // ⭐ NEW: Fetch the Admin's default percentage on load
+  useEffect(() => { 
+    loadData(); 
+    staffApi.getInputSettings()
+      .then(data => {
+        if (data?.inputUpfrontPercentage !== undefined) {
+          setDefaultPercentage(data.inputUpfrontPercentage);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const handleStatusUpdate = async (id, status) => {
     try {
@@ -46,7 +58,7 @@ const InputManagement = () => {
   const openIssueModal = (input) => {
     setSelected(input);
     setUnitCost(''); // Staff must enter current price
-    setUpfrontPercentage(25);
+    setUpfrontPercentage(defaultPercentage); // ⭐ Use dynamic percentage
     setShowModal(true);
   };
 
@@ -54,7 +66,10 @@ const InputManagement = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await staffApi.issueInput(selected.id, { unitCost: Number(unitCost), upfrontPercentage: Number(upfrontPercentage) });
+      await staffApi.issueInput(selected.id, { 
+        unitCost: Number(unitCost), 
+        upfrontPercentage: Number(upfrontPercentage) 
+      });
       toast.success('Input issued and deductions applied!');
       setShowModal(false);
       loadData();
