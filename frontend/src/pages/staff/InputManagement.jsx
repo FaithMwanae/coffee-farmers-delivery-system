@@ -7,11 +7,10 @@ import PageHeader from '../../components/common/PageHeader';
 import { toast } from 'react-toastify';
 
 const InputManagement = () => {
-  const [tab, setTab] = useState('requests'); // 'requests' | 'history'
+  const [tab, setTab] = useState('requests');
   const [inputs, setInputs] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // ⭐ NEW: Store the default percentage from Admin settings
   const [defaultPercentage, setDefaultPercentage] = useState(25);
 
   // Issue Modal
@@ -19,6 +18,11 @@ const InputManagement = () => {
   const [selected, setSelected] = useState(null);
   const [unitCost, setUnitCost] = useState('');
   const [upfrontPercentage, setUpfrontPercentage] = useState(25);
+  
+  // ⭐ NEW: Payment Method States
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [reference, setReference] = useState('');
+  
   const [submitting, setSubmitting] = useState(false);
 
   const loadData = async () => {
@@ -33,7 +37,6 @@ const InputManagement = () => {
     }
   };
 
-  // ⭐ NEW: Fetch the Admin's default percentage on load
   useEffect(() => { 
     loadData(); 
     staffApi.getInputSettings()
@@ -57,20 +60,30 @@ const InputManagement = () => {
 
   const openIssueModal = (input) => {
     setSelected(input);
-    setUnitCost(''); // Staff must enter current price
-    setUpfrontPercentage(defaultPercentage); // ⭐ Use dynamic percentage
+    setUnitCost('');
+    setUpfrontPercentage(defaultPercentage);
+    setPaymentMethod('Cash'); // Reset payment method
+    setReference('');         // Reset reference
     setShowModal(true);
   };
 
   const handleIssueSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent submit if reference is required but empty
+    if (formUpfront > 0 && paymentMethod !== 'Cash' && !reference.trim()) {
+       return toast.error('Please enter a reference number');
+    }
+
     setSubmitting(true);
     try {
       await staffApi.issueInput(selected.id, { 
         unitCost: Number(unitCost), 
-        upfrontPercentage: Number(upfrontPercentage) 
+        upfrontPercentage: Number(upfrontPercentage),
+        paymentMethod: paymentMethod,
+        reference: reference.trim() // Send payment details
       });
-      toast.success('Input issued and deductions applied!');
+      toast.success('Input issued and financials applied!');
       setShowModal(false);
       loadData();
     } catch (err) {
@@ -116,7 +129,17 @@ const InputManagement = () => {
     { key: 'farmerName', label: 'Farmer' },
     { key: 'inputType', label: 'Input', render: (v, row) => <div>{v} <small className="text-muted">({row.quantity} {row.unit})</small></div> },
     { key: 'totalCost', label: 'Total Cost', render: (v) => formatCurrency(v) },
-    { key: 'upfrontAmount', label: 'Paid Upfront', render: (v, row) => <span className="text-success">{formatCurrency(v)} ({row.upfrontPercentage}%)</span> },
+    { 
+      key: 'upfrontAmount', 
+      label: 'Paid Upfront', 
+      render: (v, row) => (
+        <div>
+          <span className="text-success fw-bold">{formatCurrency(v)}</span> 
+          <br/>
+          <small className="text-muted">{row.upfrontPercentage}% ({row.upfrontPaymentMethod})</small>
+        </div>
+      ) 
+    },
     { key: 'deductedAmount', label: 'Deducted', render: (v) => <span className="text-danger">{formatCurrency(v)}</span> },
   ];
 
@@ -156,7 +179,6 @@ const InputManagement = () => {
               <>
                 <Alert variant="info" className="small">
                   Issuing <strong>{selected.quantity} {selected.unit} {selected.inputType}</strong> to <strong>{selected.farmerName}</strong>.
-                  <br/>Please confirm the current price and payment terms.
                 </Alert>
                 
                 <Form.Group className="mb-3">
@@ -175,6 +197,36 @@ const InputManagement = () => {
                     <Button variant="outline-secondary" size="sm" className="w-100" onClick={() => setUpfrontPercentage(100)}>Set to 100%</Button>
                   </Col>
                 </Row>
+
+                {/* ⭐ NEW: Payment Details Section */}
+                {formUpfront > 0 && (
+                  <Row className="mt-3 p-3 bg-light rounded border">
+                    <Col md={6}>
+                      <Form.Group>
+                        <Form.Label>Payment Method *</Form.Label>
+                        <Form.Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                          <option value="Cash">Cash</option>
+                          <option value="M-Pesa">M-Pesa</option>
+                          <option value="Bank Transfer">Bank Transfer</option>
+                        </Form.Select>
+                      </Form.Group>
+                    </Col>
+                    <Col md={6}>
+                      <Form.Group>
+                        <Form.Label>
+                          Reference {paymentMethod !== 'Cash' ? '*' : '(Optional)'}
+                        </Form.Label>
+                        <Form.Control 
+                          type="text" 
+                          placeholder={paymentMethod === 'M-Pesa' ? 'e.g. QK12AB34CD' : paymentMethod === 'Bank Transfer' ? 'e.g. TRF-12345' : 'e.g. Voucher #'}
+                          value={reference}
+                          onChange={(e) => setReference(e.target.value)}
+                          required={paymentMethod !== 'Cash'}
+                        />
+                      </Form.Group>
+                    </Col>
+                  </Row>
+                )}
 
                 <div className="border rounded p-3 mt-3 bg-light small">
                   <div className="d-flex justify-content-between mb-1"><span>Total Cost:</span> <strong>{formatCurrency(formTotal)}</strong></div>
