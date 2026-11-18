@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Container, Row, Col, Card, Badge, Spinner, Alert, Button } from 'react-bootstrap';
+import { Container, Row, Col, Card, Badge, Spinner, Alert, Button, Table } from 'react-bootstrap';
 import { useAuth } from '../../contexts/AuthContext';
 import { farmerApi } from '../../api/farmerApi';
 import { formatCurrency, formatWeight, formatDate } from '../../utils/formatters';
@@ -9,6 +9,7 @@ import PageHeader from '../../components/common/PageHeader';
 import ChartWrapper from '../../components/charts/ChartWrapper';
 import FarmerDeliveryChart from '../../components/charts/FarmerDeliveryChart';
 import RequestAdvanceModal from '../../components/farmer/RequestAdvanceModal';
+import RequestInputModal from '../../components/farmer/RequestInputModal'; // ⭐ Import Input Modal
 
 const FarmerDashboard = () => {
   const { user } = useAuth();
@@ -16,24 +17,29 @@ const FarmerDashboard = () => {
   const [eligibility, setEligibility] = useState(null);
   const [recentDeliveries, setRecentDeliveries] = useState([]);
   const [allDeliveries, setAllDeliveries] = useState([]);
+  const [inputs, setInputs] = useState([]); // ⭐ State for inputs
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [showInputModal, setShowInputModal] = useState(false); // ⭐ State for modal
 
   const loadData = async () => {
     try {
-      const [statsData, deliveriesData, announcementsData, eligibilityData] = await Promise.all([
+      const [statsData, deliveriesData, announcementsData, eligibilityData, inputsData] = await Promise.all([
         farmerApi.getDashboardStats(),
         farmerApi.getDeliveries(),
         farmerApi.getAnnouncements(),
         farmerApi.getAdvanceEligibility().catch(() => null),
+        farmerApi.getMyInputs().catch(() => []), // ⭐ Fetch inputs
       ]);
       setStats(statsData);
       setRecentDeliveries(deliveriesData.slice(0, 5));
       setAllDeliveries(deliveriesData);
       setAnnouncements(announcementsData.slice(0, 3));
       setEligibility(eligibilityData);
+      setInputs(inputsData);
     } catch (err) {
       console.error(err);
       setError('Failed to load dashboard data');
@@ -77,122 +83,120 @@ const FarmerDashboard = () => {
       {/* ============ Stats ============ */}
       <Row className="g-3 mb-4">
         <Col xs={6} lg={3}>
-          <StatsCard
-            title="Total Deliveries"
-            value={formatWeight(stats.totalDeliveries)}
-            subtitle="This season"
-            color="success"
-            icon="bi-box-seam"
-          />
+          <StatsCard title="Total Deliveries" value={formatWeight(stats.totalDeliveries)} subtitle="This season" color="success" icon="bi-box-seam" />
         </Col>
         <Col xs={6} lg={3}>
-          <StatsCard
-            title="Pending Payment"
-            value={formatCurrency(stats.pendingPayment)}
-            subtitle="Awaiting processing"
-            color="info"
-            icon="bi-cash-stack"
-          />
+          <StatsCard title="Pending Payment" value={formatCurrency(stats.pendingPayment)} subtitle="Awaiting processing" color="info" icon="bi-cash-stack" />
         </Col>
         <Col xs={6} lg={3}>
-          <StatsCard
-            title="Advances Taken"
-            value={formatCurrency(stats.advancesTaken)}
-            subtitle="Total borrowed"
-            color="warning"
-            icon="bi-cash-coin"
-          />
+          <StatsCard title="Advances Taken" value={formatCurrency(stats.advancesTaken)} subtitle="Total borrowed" color="warning" icon="bi-cash-coin" />
         </Col>
         <Col xs={6} lg={3}>
-          <StatsCard
-            title="Total Paid"
-            value={formatCurrency(stats.totalPaid)}
-            subtitle="Received to date"
-            color="primary"
-            icon="bi-check-circle"
-          />
+          <StatsCard title="Total Paid" value={formatCurrency(stats.totalPaid)} subtitle="Received to date" color="primary" icon="bi-check-circle" />
         </Col>
       </Row>
 
-      {/* ============ Chart + Eligibility ============ */}
+      {/* ============ Chart + Eligibility + Inputs ============ */}
       <Row className="g-3 mb-4">
-        <Col lg={8}>
+        <Col lg={6}>
           <ChartWrapper title="My Delivery History" height={280}>
             <FarmerDeliveryChart deliveries={allDeliveries} />
           </ChartWrapper>
         </Col>
-        <Col lg={4}>
-          <Card className="h-100">
-            <Card.Header>
-              <span>Advance Eligibility</span>
-            </Card.Header>
-            <Card.Body className="d-flex flex-column">
-              {!eligibility ? (
-                <div className="text-center text-muted py-3 small">
-                  Eligibility unavailable
-                </div>
-              ) : (
-                <>
-                  <div className="text-center mb-3">
-                    <div className="text-muted small mb-1">Available to Request</div>
-                    <div
-                      className="fw-bold num"
-                      style={{ fontSize: '1.9rem', color: 'var(--kl-primary)' }}
-                    >
-                      {formatCurrency(eligibility.available)}
+        
+        <Col lg={6}>
+          <Row className="g-3 h-100">
+            {/* Advance Eligibility Card */}
+            <Col xs={12} md={6}>
+              <Card className="h-100">
+                <Card.Header><span>Advance Eligibility</span></Card.Header>
+                <Card.Body className="d-flex flex-column p-3">
+                  {!eligibility ? (
+                    <div className="text-center text-muted py-3 small">Unavailable</div>
+                  ) : (
+                    <>
+                      <div className="text-center mb-2">
+                        <div className="text-muted small">Available</div>
+                        <div className="fw-bold num text-success" style={{ fontSize: '1.4rem' }}>
+                          {formatCurrency(eligibility.available)}
+                        </div>
+                      </div>
+                      <div className="mt-auto">
+                        <Button variant="outline-success" className="w-100" size="sm" disabled={!canRequest} onClick={() => setShowAdvanceModal(true)}>
+                          Request Advance
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </Card.Body>
+              </Card>
+            </Col>
+
+            {/* ⭐ NEW: Farm Inputs Card */}
+            <Col xs={12} md={6}>
+              <Card className="h-100">
+                <Card.Header><span>Farm Inputs</span></Card.Header>
+                <Card.Body className="d-flex flex-column p-3">
+                  <div className="text-center mb-2">
+                    <div className="text-muted small">Need fertilizer?</div>
+                    <div className="fw-semibold text-dark" style={{ fontSize: '1rem' }}>
+                      Request Farm Inputs
                     </div>
                   </div>
-
-                  <div className="border-top pt-3 mb-3 small">
-                    <div className="d-flex justify-content-between py-1">
-                      <span className="text-muted">Total Eligible</span>
-                      <strong className="num">{formatCurrency(eligibility.eligible)}</strong>
-                    </div>
-                    <div className="d-flex justify-content-between py-1">
-                      <span className="text-muted">Already Taken</span>
-                      <strong className="num text-danger">
-                        − {formatCurrency(eligibility.totalAdvanced)}
-                      </strong>
-                    </div>
-                    {eligibility.pending > 0 && (
-                      <div className="d-flex justify-content-between py-1">
-                        <span className="text-muted">Pending Approval</span>
-                        <strong className="num text-warning">
-                          {formatCurrency(eligibility.pending)}
-                        </strong>
-                      </div>
-                    )}
-                    {eligibility.requested > 0 && (
-                      <div className="d-flex justify-content-between py-1">
-                        <span className="text-muted">Awaiting CEO</span>
-                        <strong className="num text-info">
-                          {formatCurrency(eligibility.requested)}
-                        </strong>
-                      </div>
-                    )}
-                  </div>
-
                   <div className="mt-auto">
-                    <Button
-                      variant="success"
-                      className="w-100 d-flex align-items-center justify-content-center gap-2"
-                      disabled={!canRequest}
-                      onClick={() => setShowAdvanceModal(true)}
-                    >
-                      <i className="bi bi-cash-coin"></i>
-                      {canRequest ? 'Request Advance' : 'No Balance Available'}
+                    <Button variant="outline-success" className="w-100" size="sm" onClick={() => setShowInputModal(true)}>
+                      Request Input
                     </Button>
-                    <div className="text-center text-muted mt-2" style={{ fontSize: '0.72rem' }}>
-                      Based on {formatWeight(eligibility.totalDelivered)} delivered
-                      × {formatCurrency(eligibility.rate)}/kg
-                    </div>
                   </div>
-                </>
-              )}
-            </Card.Body>
-          </Card>
+                </Card.Body>
+              </Card>
+            </Col>
+          </Row>
         </Col>
       </Row>
+
+      {/* ⭐ NEW: Recent Input Requests Table */}
+      {inputs.length > 0 && (
+        <Row className="g-3 mb-4">
+          <Col lg={12}>
+            <Card>
+              <Card.Header className="d-flex justify-content-between align-items-center">
+                <span>My Input Requests</span>
+              </Card.Header>
+              <Card.Body className="p-0">
+                <Table hover responsive className="mb-0 align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Date</th>
+                      <th>Input</th>
+                      <th>Quantity</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inputs.map((input) => (
+                      <tr key={input.id}>
+                        <td className="text-muted small">{formatDate(input.date)}</td>
+                        <td className="fw-semibold">{input.input_type}</td>
+                        <td>{input.quantity} {input.unit}</td>
+                        <td>
+                          <Badge bg={
+                            input.status === 'Issued' ? 'success' : 
+                            input.status === 'Approved' ? 'primary' : 
+                            input.status === 'Rejected' ? 'danger' : 'warning'
+                          }>
+                            {input.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </Card.Body>
+            </Card>
+          </Col>
+        </Row>
+      )}
 
       <Row className="g-3">
         {/* ============ Recent Deliveries ============ */}
@@ -217,24 +221,14 @@ const FarmerDashboard = () => {
                   </thead>
                   <tbody>
                     {recentDeliveries.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="text-center text-muted py-4 small">
-                          No deliveries recorded yet
-                        </td>
-                      </tr>
+                      <tr><td colSpan={4} className="text-center text-muted py-4 small">No deliveries recorded yet</td></tr>
                     ) : (
                       recentDeliveries.map((d) => (
                         <tr key={d.id}>
                           <td className="text-muted">{formatDate(d.date)}</td>
                           <td className="text-end num fw-semibold">{formatWeight(d.weight)}</td>
-                          <td>
-                            <code>{d.receipt || d.receipt_no}</code>
-                          </td>
-                          <td>
-                            <Badge bg={d.status === 'Processed' ? 'success' : 'warning'}>
-                              {d.status || 'Processed'}
-                            </Badge>
-                          </td>
+                          <td><code>{d.receipt || d.receipt_no}</code></td>
+                          <td><Badge bg={d.status === 'Processed' ? 'success' : 'warning'}>{d.status || 'Processed'}</Badge></td>
                         </tr>
                       ))
                     )}
@@ -256,28 +250,16 @@ const FarmerDashboard = () => {
             </Card.Header>
             <Card.Body>
               {announcements.length === 0 ? (
-                <div className="kl-empty py-3">
-                  <p className="small mb-0">No announcements yet</p>
-                </div>
+                <div className="kl-empty py-3"><p className="small mb-0">No announcements yet</p></div>
               ) : (
                 announcements.map((a) => (
                   <div key={a.id} className="border-bottom pb-3 mb-3">
                     <div className="d-flex justify-content-between align-items-start gap-2 mb-1">
-                      <h6 className="fw-semibold mb-0" style={{ fontSize: '0.9rem' }}>
-                        {a.title}
-                      </h6>
-                      {a.priority === 'high' && (
-                        <Badge bg="danger" className="fw-normal px-2 py-1">
-                          NEW
-                        </Badge>
-                      )}
+                      <h6 className="fw-semibold mb-0" style={{ fontSize: '0.9rem' }}>{a.title}</h6>
+                      {a.priority === 'high' && <Badge bg="danger" className="fw-normal px-2 py-1">NEW</Badge>}
                     </div>
-                    <small className="text-muted d-block mb-2">
-                      {formatDate(a.date)} · {a.author}
-                    </small>
-                    <p className="mb-0" style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>
-                      {a.content}
-                    </p>
+                    <small className="text-muted d-block mb-2">{formatDate(a.date)} · {a.author}</small>
+                    <p className="mb-0" style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>{a.content}</p>
                   </div>
                 ))
               )}
@@ -286,12 +268,18 @@ const FarmerDashboard = () => {
         </Col>
       </Row>
 
-      {/* Request Advance Modal */}
+      {/* Modals */}
       <RequestAdvanceModal
         show={showAdvanceModal}
         onHide={() => setShowAdvanceModal(false)}
         onSuccess={loadData}
         initialEligibility={eligibility}
+      />
+      
+      <RequestInputModal
+        show={showInputModal}
+        onHide={() => setShowInputModal(false)}
+        onSuccess={loadData}
       />
     </Container>
   );

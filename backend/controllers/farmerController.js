@@ -17,10 +17,12 @@ export const getDashboard = async (req, res) => {
       [farmer.id]
     );
 
+    // ⭐ FIXED: Include Deductions and Payments in the calculation
     const txResult = await pool.query(
       `SELECT
-        COALESCE(SUM(CASE WHEN type = 'Advance' THEN amount END), 0) AS advances,
-        COALESCE(SUM(CASE WHEN type = 'Payment' THEN amount END), 0) AS payments
+        COALESCE(SUM(CASE WHEN type = 'Advance' AND status = 'Completed' THEN amount END), 0) AS advances,
+        COALESCE(SUM(CASE WHEN type = 'Payment' AND status = 'Completed' THEN amount END), 0) AS payments,
+        COALESCE(SUM(CASE WHEN type = 'Deduction' AND status = 'Completed' THEN amount END), 0) AS deductions
        FROM transactions WHERE farmer_id = $1`,
       [farmer.id]
     );
@@ -29,7 +31,7 @@ export const getDashboard = async (req, res) => {
       'SELECT * FROM announcements ORDER BY date DESC LIMIT 3'
     );
 
-    const { advances, payments } = txResult.rows[0];
+    const { advances, payments, deductions } = txResult.rows[0];
     const totalDelivered = Number(farmer.total_delivered || 0);
 
     const settingsRes = await pool.query('SELECT rate_per_kg FROM settings LIMIT 1');
@@ -41,10 +43,14 @@ export const getDashboard = async (req, res) => {
       weight: Number(d.weight),
     }));
 
+    // True pending payment = Gross - Advances - Deductions - Payments
+    const gross = totalDelivered * rate;
+    const pendingPayment = gross - Number(advances) - Number(deductions) - Number(payments);
+
     res.json({
       season: '2026',
       totalDeliveries: totalDelivered,
-      pendingPayment: totalDelivered * rate - Number(advances),
+      pendingPayment: Math.max(0, pendingPayment), // Prevent negative display
       advancesTaken: Number(advances),
       totalPaid: Number(payments),
       recentDeliveries: mappedDeliveries,
@@ -213,9 +219,8 @@ export const enableFarmerProfile = async (req, res) => {
       });
     }
 
-    const countRes = await pool.query('SELECT COUNT(*) FROM farmers');
-    const nextNum = 100 + Number(countRes.rows[0].count) + 1;
-    const memberNo = `KFCS-${String(nextNum).padStart(5, '0')}`;
+    // ⭐ FIXED: Use user.id to prevent duplicate member_no crashes
+    const memberNo = `KFCS-${String(100 + req.user.id).padStart(5, '0')}`;
 
     const result = await pool.query(
       `INSERT INTO farmers
@@ -446,7 +451,6 @@ export const getMyAdvances = async (req, res) => {
 
 // ============================================
 // GET /api/farmer/payment-details
-// Returns this farmer's saved payment details
 // ============================================
 export const getPaymentDetails = async (req, res) => {
   try {
@@ -471,7 +475,6 @@ export const getPaymentDetails = async (req, res) => {
 
 // ============================================
 // PUT /api/farmer/payment-details
-// Farmer updates their own payment details
 // ============================================
 export const updatePaymentDetails = async (req, res) => {
   try {
@@ -497,7 +500,6 @@ export const updatePaymentDetails = async (req, res) => {
         .json({ message: 'Preferred method must be M-Pesa or Bank Transfer.' });
     }
 
-    // Validate M-Pesa number if provided
     if (mpesaNumber && mpesaNumber.trim()) {
       const clean = String(mpesaNumber).replace(/\s/g, '');
       if (!/^(254|0|\+254)\d{9}$/.test(clean)) {
@@ -558,6 +560,7 @@ export const updatePaymentDetails = async (req, res) => {
     res.status(500).json({ message: 'Server error saving payment details.' });
   }
 };
+
 // POST /api/farmer/inputs/request
 export const requestInput = async (req, res) => {
   const { inputType, quantity, unit, description } = req.body;
