@@ -33,14 +33,11 @@ const SystemSettings = () => {
     setSettings({ ...settings, [name]: type === 'checkbox' ? checked : value });
   };
 
-  // Confirmation before turning maintenance ON
   const handleMaintenanceToggle = (e) => {
     const turningOn = e.target.checked;
     if (turningOn && !settings.maintenanceMode) {
-      // Intercept — show confirmation modal
       setShowMaintenanceConfirm(true);
     } else {
-      // Turning off — allow directly
       setSettings({ ...settings, maintenanceMode: false });
     }
   };
@@ -141,7 +138,7 @@ const SystemSettings = () => {
                   </Form.Text>
                 </Form.Group>
 
-                <Form.Group className="mb-0">
+                <Form.Group className="mb-3">
                   <Form.Label className="small fw-semibold text-secondary">Loan Interest Rate (%)</Form.Label>
                   <Form.Control
                     type="number"
@@ -154,6 +151,24 @@ const SystemSettings = () => {
                   />
                   <Form.Text className="text-muted" style={{ fontSize: '0.72rem' }}>
                     Applied to farmer advances and loans
+                  </Form.Text>
+                </Form.Group>
+
+                {/* ⭐ NEW: Farm Input Upfront Requirement */}
+                <Form.Group className="mb-0">
+                  <Form.Label className="small fw-semibold text-secondary">Farm Input Upfront Requirement (%)</Form.Label>
+                  <Form.Control
+                    type="number"
+                    name="inputUpfrontPercentage"
+                    value={settings.inputUpfrontPercentage ?? 25}
+                    onChange={handleChange}
+                    min="0"
+                    max="100"
+                    step="1"
+                    style={{ fontSize: '0.9rem' }}
+                  />
+                  <Form.Text className="text-muted" style={{ fontSize: '0.72rem' }}>
+                    Default % farmers must pay in cash for inputs. The rest is deducted from their final payment.
                   </Form.Text>
                 </Form.Group>
               </Card.Body>
@@ -239,7 +254,7 @@ const SystemSettings = () => {
             </Card>
           </Col>
 
-          {/* System Maintenance — IMPROVED */}
+          {/* System Maintenance */}
           <Col lg={6}>
             <Card className="border-0 shadow-sm h-100">
               <Card.Header
@@ -279,7 +294,6 @@ const SystemSettings = () => {
                   </Alert>
                 )}
 
-                {/* Maintenance Message */}
                 <Form.Group className="mb-3">
                   <Form.Label className="small fw-semibold text-secondary">
                     Maintenance Message
@@ -299,7 +313,6 @@ const SystemSettings = () => {
                   </Form.Text>
                 </Form.Group>
 
-                {/* Scheduled Maintenance */}
                 <Row className="g-2">
                   <Col md={6}>
                     <Form.Group>

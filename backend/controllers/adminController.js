@@ -68,7 +68,6 @@ export const getRoleDistribution = async (req, res) => {
 
 // ============================================
 // GET /api/admin/users
-// ⭐ Returns last_login (real timestamp) + created_at
 // ============================================
 export const getAllUsers = async (req, res) => {
   try {
@@ -202,6 +201,7 @@ const mapSettings = (s = {}) => ({
   advanceRatePerKg: Number(s.advance_rate_per_kg ?? 30),
   cooperativeFee: Number(s.cooperative_fee ?? 1200),
   loanInterestRate: Number(s.loan_interest_rate ?? 5),
+  inputUpfrontPercentage: Number(s.input_upfront_percentage ?? 25), // ⭐ NEW
   seasonStart: s.season_start
     ? (typeof s.season_start === 'object'
         ? s.season_start.toISOString().split('T')[0]
@@ -249,6 +249,7 @@ export const updateSettings = async (req, res) => {
     advanceRatePerKg,
     cooperativeFee,
     loanInterestRate,
+    inputUpfrontPercentage, // ⭐ NEW
     seasonStart,
     seasonEnd,
     currentSeason,
@@ -267,17 +268,18 @@ export const updateSettings = async (req, res) => {
     if (existing.rows.length === 0) {
       result = await pool.query(
         `INSERT INTO settings
-           (rate_per_kg, advance_rate_per_kg, cooperative_fee, loan_interest_rate,
+           (rate_per_kg, advance_rate_per_kg, cooperative_fee, loan_interest_rate, input_upfront_percentage,
             season_start, season_end, current_season,
             sms_notifications, email_notifications, maintenance_mode,
             maintenance_message, maintenance_start, maintenance_end)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          RETURNING *`,
         [
           ratePerKg,
           advanceRatePerKg,
           cooperativeFee,
           loanInterestRate,
+          inputUpfrontPercentage || 25,
           seasonStart || null,
           seasonEnd || null,
           currentSeason,
@@ -296,22 +298,24 @@ export const updateSettings = async (req, res) => {
           advance_rate_per_kg = COALESCE($2, advance_rate_per_kg),
           cooperative_fee = COALESCE($3, cooperative_fee),
           loan_interest_rate = COALESCE($4, loan_interest_rate),
-          season_start = COALESCE($5, season_start),
-          season_end = COALESCE($6, season_end),
-          current_season = COALESCE($7, current_season),
-          sms_notifications = COALESCE($8, sms_notifications),
-          email_notifications = COALESCE($9, email_notifications),
-          maintenance_mode = COALESCE($10, maintenance_mode),
-          maintenance_message = COALESCE($11, maintenance_message),
-          maintenance_start = $12,
-          maintenance_end = $13
-         WHERE id = $14
+          input_upfront_percentage = COALESCE($5, input_upfront_percentage),
+          season_start = COALESCE($6, season_start),
+          season_end = COALESCE($7, season_end),
+          current_season = COALESCE($8, current_season),
+          sms_notifications = COALESCE($9, sms_notifications),
+          email_notifications = COALESCE($10, email_notifications),
+          maintenance_mode = COALESCE($11, maintenance_mode),
+          maintenance_message = COALESCE($12, maintenance_message),
+          maintenance_start = $13,
+          maintenance_end = $14
+         WHERE id = $15
          RETURNING *`,
         [
           ratePerKg,
           advanceRatePerKg,
           cooperativeFee,
           loanInterestRate,
+          inputUpfrontPercentage,
           seasonStart || null,
           seasonEnd || null,
           currentSeason,
@@ -408,12 +412,10 @@ export const getChartData = async (req, res) => {
 };
 
 // ============================================
-// GET /api/admin/analytics  ⭐ NEW — Module B
-// Advanced analytics for the admin dashboard
+// GET /api/admin/analytics
 // ============================================
 export const getAnalytics = async (req, res) => {
   try {
-    // Top 5 farmers by delivered weight
     const topFarmers = await pool.query(`
       SELECT name, member_no, total_delivered AS weight
       FROM farmers
@@ -421,7 +423,6 @@ export const getAnalytics = async (req, res) => {
       LIMIT 5
     `);
 
-    // Monthly deliveries (last 12 months)
     const monthlyDeliveries = await pool.query(`
       SELECT
         TO_CHAR(date, 'Mon YYYY') AS month,
@@ -433,7 +434,6 @@ export const getAnalytics = async (req, res) => {
       ORDER BY DATE_TRUNC('month', date)
     `);
 
-    // Payment vs Advances vs Deductions (all time)
     const totalsRes = await pool.query(`
       SELECT
         COALESCE(SUM(CASE WHEN type = 'Payment' AND status = 'Completed' THEN amount END), 0) AS payments,
@@ -442,7 +442,6 @@ export const getAnalytics = async (req, res) => {
       FROM transactions
     `);
 
-    // Quality distribution
     const qualityDist = await pool.query(`
       SELECT quality, COUNT(*) AS count
       FROM deliveries
@@ -450,7 +449,6 @@ export const getAnalytics = async (req, res) => {
       ORDER BY count DESC
     `);
 
-    // Average / max / min delivery per farmer
     const avgRes = await pool.query(`
       SELECT
         COALESCE(AVG(total_delivered), 0) AS avg_weight,
@@ -459,7 +457,6 @@ export const getAnalytics = async (req, res) => {
       FROM farmers
     `);
 
-    // Season info
     const seasonRes = await pool.query(`
       SELECT season_start, season_end, current_season
       FROM settings LIMIT 1
