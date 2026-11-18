@@ -1,16 +1,9 @@
 import client from './client';
 
 export const staffApi = {
-    // Inputs
-  getAllInputs: async () => {
-    const { data } = await client.get('/staff/inputs');
-    return data;
-  },
-  recordInput: async (payload) => {
-    const { data } = await client.post('/staff/inputs', payload);
-    return data;
-  },
-  // Dashboard
+  // ============================================
+  // DASHBOARD
+  // ============================================
   getDashboardStats: async () => {
     const { data } = await client.get('/staff/dashboard');
     return data;
@@ -21,7 +14,9 @@ export const staffApi = {
     return data.recentDeliveries || [];
   },
 
-  // Deliveries
+  // ============================================
+  // DELIVERIES
+  // ============================================
   getAllDeliveries: async () => {
     const { data } = await client.get('/staff/deliveries');
     return data;
@@ -32,21 +27,55 @@ export const staffApi = {
     return data.delivery;
   },
 
-  // Farmers
+  // ============================================
+  // FARMERS
+  // ============================================
   getAllFarmers: async () => {
     const { data } = await client.get('/staff/farmers');
     return data;
   },
+  
   getFarmerAdvanceInfo: async (farmerId) => {
     const { data } = await client.get(`/staff/farmers/${farmerId}/advance-info`);
     return data;
   },
+  
   registerFarmer: async (payload) => {
     const { data } = await client.post('/staff/farmers', payload);
     return data.farmer;
   },
 
-  // Transactions
+  // ============================================
+  // FARM INPUTS
+  // ============================================
+  getAllInputs: async () => {
+    const { data } = await client.get('/staff/inputs');
+    return data;
+  },
+  
+  recordInput: async (payload) => {
+    const { data } = await client.post('/staff/inputs', payload);
+    return data;
+  },
+
+  updateInputStatus: async (id, status) => {
+    const { data } = await client.put(`/staff/inputs/${id}/status`, { status });
+    return data;
+  },
+
+  issueInput: async (id, payload) => {
+    const { data } = await client.post(`/staff/inputs/${id}/issue`, payload);
+    return data;
+  },
+
+  getInputSettings: async () => {
+    const { data } = await client.get('/staff/settings/input-rules');
+    return data;
+  },
+
+  // ============================================
+  // TRANSACTIONS
+  // ============================================
   getAllTransactions: async () => {
     const { data } = await client.get('/staff/transactions');
     return data;
@@ -57,7 +86,9 @@ export const staffApi = {
     return data.transaction;
   },
 
-  // Payments
+  // ============================================
+  // PAYMENTS
+  // ============================================
   getPaymentSchedule: async () => {
     const { data } = await client.get('/staff/payments');
     return data;
@@ -93,13 +124,14 @@ export const staffApi = {
     return data;
   },
 
-  // Reports
+  // ============================================
+  // REPORTS & CHARTS
+  // ============================================
   getReportSummary: async () => {
     const { data } = await client.get('/staff/reports/summary');
     return data;
   },
 
-  // Charts
   getChartData: async () => {
     const { data } = await client.get('/staff/charts');
     return data;
