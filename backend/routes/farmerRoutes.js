@@ -11,6 +11,11 @@ import {
 } from '../controllers/farmerController.js';
 import { authenticate } from '../middleware/auth.js';
 import { allowRoles } from '../middleware/roleCheck.js';
+import { getMyInputs, requestInput } from '../controllers/farmerController.js';
+
+// Add these lines under the authenticated farmer routes:
+router.get('/inputs', getMyInputs);
+router.post('/inputs/request', requestInput);
 
 const router = express.Router();
 

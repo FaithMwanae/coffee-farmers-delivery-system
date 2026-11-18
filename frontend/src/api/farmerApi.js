@@ -44,6 +44,19 @@ export const farmerApi = {
   },
 
   // ============================================
+  // FARM INPUTS — self-service
+  // ============================================
+  getMyInputs: async () => {
+    const { data } = await client.get('/farmer/inputs');
+    return data;
+  },
+
+  requestInput: async (payload) => {
+    const { data } = await client.post('/farmer/inputs/request', payload);
+    return data;
+  },
+
+  // ============================================
   // PAYMENT DETAILS
   // ============================================
   getPaymentDetails: async () => {
@@ -57,16 +70,13 @@ export const farmerApi = {
   },
 
   // ============================================
-  // ANNOUNCEMENTS
+  // ANNOUNCEMENTS & FORMS
   // ============================================
   getAnnouncements: async () => {
     const { data } = await client.get('/farmer/announcements');
     return data;
   },
 
-  // ============================================
-  // FORMS
-  // ============================================
   getForms: async () => {
     const { data } = await client.get('/forms');
     return data;

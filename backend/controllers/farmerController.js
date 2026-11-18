@@ -558,3 +558,43 @@ export const updatePaymentDetails = async (req, res) => {
     res.status(500).json({ message: 'Server error saving payment details.' });
   }
 };
+// POST /api/farmer/inputs/request
+export const requestInput = async (req, res) => {
+  const { inputType, quantity, unit, description } = req.body;
+  
+  if (!inputType || !quantity) return res.status(400).json({ message: 'Input type and quantity required.' });
+
+  try {
+    const farmer = await getFarmerForUser(req.user.id);
+    if (!farmer) return res.status(404).json({ message: 'Farmer profile not found.' });
+
+    await pool.query(
+      `INSERT INTO inputs 
+        (farmer_id, input_type, description, quantity, unit, status, requested_by)
+       VALUES ($1, $2, $3, $4, $5, 'Requested', 'farmer')`,
+      [farmer.id, inputType, description || null, quantity, unit || 'unit']
+    );
+
+    res.status(201).json({ success: true, message: 'Input request submitted for approval.' });
+  } catch (error) {
+    console.error('Request input error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// GET /api/farmer/inputs
+export const getMyInputs = async (req, res) => {
+  try {
+    const farmer = await getFarmerForUser(req.user.id);
+    if (!farmer) return res.status(404).json({ message: 'Farmer profile not found.' });
+
+    const result = await pool.query(
+      `SELECT id, input_type, description, quantity, unit, total_cost, status, date 
+       FROM inputs WHERE farmer_id = $1 ORDER BY date DESC`,
+      [farmer.id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
