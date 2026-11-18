@@ -3,17 +3,18 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Container, Offcanvas, Dropdown, Badge } from 'react-bootstrap';
 import { useAuth } from '../contexts/AuthContext';
 import { ceoApi } from '../api/ceoApi';
+import { staffApi } from '../api/staffApi'; // ⭐ Import staffApi
 
 const DashboardLayout = () => {
   const { user, logout, hasFarmerProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [showSidebar, setShowSidebar] = useState(false);
+  
+  // ⭐ Badge States
   const [pendingAdvances, setPendingAdvances] = useState(0);
+  const [pendingInputs, setPendingInputs] = useState(0);
 
-  // ============================================
-  // Determine the CURRENT VIEW from the URL
-  // ============================================
   const getCurrentView = () => {
     const path = location.pathname;
     if (path.startsWith('/farmer')) return 'farmer';
@@ -25,24 +26,28 @@ const DashboardLayout = () => {
 
   const currentView = getCurrentView();
 
-  // ============================================
-  // Badge counter — CEO only
-  // ============================================
+  // ⭐ Fetch Badges dynamically
   useEffect(() => {
-    const isCeo = user?.role === 'ceo' || user?.role === 'admin';
-    if (!isCeo) return;
+    const fetchBadges = async () => {
+      // Fetch Advance count for CEO/Admin
+      if (user?.role === 'ceo' || user?.role === 'admin') {
+        try {
+          const data = await ceoApi.getPendingAdvances();
+          setPendingAdvances(Array.isArray(data) ? data.length : 0);
+        } catch (err) {}
+      }
 
-    const fetchCount = async () => {
-      try {
-        const data = await ceoApi.getPendingAdvances();
-        setPendingAdvances(Array.isArray(data) ? data.length : 0);
-      } catch (err) {
-        // silent error
+      // Fetch Input count for Staff/Admin/CEO
+      if (['staff', 'admin', 'ceo'].includes(user?.role)) {
+        try {
+          const data = await staffApi.getPendingInputsCount();
+          setPendingInputs(data?.count || 0);
+        } catch (err) {}
       }
     };
 
-    fetchCount();
-    const interval = setInterval(fetchCount, 60000);
+    fetchBadges();
+    const interval = setInterval(fetchBadges, 60000); // Refresh every 60s
     return () => clearInterval(interval);
   }, [user?.role]);
 
@@ -80,7 +85,8 @@ const DashboardLayout = () => {
             { label: 'Dashboard', route: '/staff/dashboard', icon: 'bi-speedometer2' },
             { label: 'Record Delivery', route: '/staff/record-delivery', icon: 'bi-box-seam' },
             { label: 'Farmer Management', route: '/staff/farmers', icon: 'bi-people' },
-            { label: 'Farm Inputs', route: '/staff/inputs', icon: 'bi-box' }, // ⭐ ADDED THIS LINE
+            // ⭐ Add badgeKey for inputs
+            { label: 'Farm Inputs', route: '/staff/inputs', icon: 'bi-box', badgeKey: 'inputs' }, 
           ],
         },
         {
@@ -119,6 +125,7 @@ const DashboardLayout = () => {
           title: 'Executive',
           items: [
             { label: 'Dashboard', route: '/ceo/dashboard', icon: 'bi-speedometer2' },
+            // ⭐ Add badgeKey for advances
             { label: 'Advance Approvals', route: '/ceo/advances', icon: 'bi-check2-square', badgeKey: 'advances' },
           ],
         },
@@ -145,9 +152,6 @@ const DashboardLayout = () => {
     logout();
   };
 
-  // ============================================
-  // SIDEBAR FOOTER
-  // ============================================
   const renderSidebarFooter = () => {
     const accountRole = user?.role;
     const isInFarmerView = currentView === 'farmer';
@@ -155,14 +159,7 @@ const DashboardLayout = () => {
 
     if (canSwitchToFarmer && isInFarmerView) {
       return (
-        <a
-          href={`/${accountRole}/dashboard`}
-          className="kl-nav-item"
-          onClick={(e) => {
-            e.preventDefault();
-            handleNav(`/${accountRole}/dashboard`);
-          }}
-        >
+        <a href={`/${accountRole}/dashboard`} className="kl-nav-item" onClick={(e) => { e.preventDefault(); handleNav(`/${accountRole}/dashboard`); }}>
           <i className="bi bi-arrow-left-right"></i>
           <span>Back to {accountRole.charAt(0).toUpperCase() + accountRole.slice(1)} View</span>
         </a>
@@ -172,49 +169,27 @@ const DashboardLayout = () => {
     if (canSwitchToFarmer && !isInFarmerView) {
       if (hasFarmerProfile) {
         return (
-          <a
-            href="/farmer/dashboard"
-            className="kl-nav-item"
-            onClick={(e) => {
-              e.preventDefault();
-              handleNav('/farmer/dashboard');
-            }}
-          >
+          <a href="/farmer/dashboard" className="kl-nav-item" onClick={(e) => { e.preventDefault(); handleNav('/farmer/dashboard'); }}>
             <i className="bi bi-arrow-left-right"></i>
             <span>Switch to Farmer View</span>
           </a>
         );
       }
       return (
-        <a
-          href="/become-farmer"
-          className="kl-nav-item"
-          onClick={(e) => {
-            e.preventDefault();
-            handleNav('/become-farmer');
-          }}
-        >
+        <a href="/become-farmer" className="kl-nav-item" onClick={(e) => { e.preventDefault(); handleNav('/become-farmer'); }}>
           <i className="bi bi-plus-circle"></i>
           <span>Register as Farmer</span>
         </a>
       );
     }
-
     return null;
   };
 
-  // ============================================
-  // SIDEBAR CONTENT
-  // ============================================
   const SidebarContent = () => (
     <div className="kl-sidebar" style={{ height: '100%', minHeight: '100%' }}>
       <div className="kl-sidebar-brand">
-        <h5 style={{ fontSize: '0.95rem', lineHeight: 1.3 }}>
-          KALILUNI FACTORY
-        </h5>
-        <small style={{ fontSize: '0.6rem', letterSpacing: '1.5px' }}>
-          CO-OPERATIVE SOCIETY
-        </small>
+        <h5 style={{ fontSize: '0.95rem', lineHeight: 1.3 }}>KALILUNI FACTORY</h5>
+        <small style={{ fontSize: '0.6rem', letterSpacing: '1.5px' }}>CO-OPERATIVE SOCIETY</small>
       </div>
 
       <div className="kl-sidebar-nav py-2">
@@ -223,24 +198,26 @@ const DashboardLayout = () => {
             <div className="kl-sidebar-section">{section.title}</div>
             {section.items.map((item) => {
               const isActive = location.pathname === item.route;
-              const showBadge =
-                item.badgeKey === 'advances' && pendingAdvances > 0;
+              
+              // ⭐ Determine which badge to show
+              let badgeCount = 0;
+              if (item.badgeKey === 'advances') badgeCount = pendingAdvances;
+              if (item.badgeKey === 'inputs') badgeCount = pendingInputs;
 
               return (
                 <a
                   key={item.route}
                   href={item.route}
                   className={`kl-nav-item ${isActive ? 'active' : ''}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleNav(item.route);
-                  }}
+                  onClick={(e) => { e.preventDefault(); handleNav(item.route); }}
                 >
                   <i className={`bi ${item.icon}`}></i>
                   <span className="flex-grow-1">{item.label}</span>
-                  {showBadge && (
+                  
+                  {/* ⭐ Display Badge if > 0 */}
+                  {badgeCount > 0 && (
                     <Badge bg="danger" pill style={{ fontSize: '0.65rem', padding: '3px 7px' }}>
-                      {pendingAdvances}
+                      {badgeCount}
                     </Badge>
                   )}
                 </a>
@@ -252,16 +229,7 @@ const DashboardLayout = () => {
 
       <div className="kl-sidebar-footer">
         {renderSidebarFooter()}
-
-        <a
-          href="#logout"
-          className="kl-nav-item"
-          style={{ color: '#ff8a80' }}
-          onClick={(e) => {
-            e.preventDefault();
-            handleLogout();
-          }}
-        >
+        <a href="#logout" className="kl-nav-item" style={{ color: '#ff8a80' }} onClick={(e) => { e.preventDefault(); handleLogout(); }}>
           <i className="bi bi-box-arrow-right"></i>
           <span>Sign Out</span>
         </a>
@@ -271,63 +239,33 @@ const DashboardLayout = () => {
 
   return (
     <div className="d-flex" style={{ minHeight: '100vh', background: 'var(--kl-bg)' }}>
-      {/* Desktop Sidebar */}
-      <div className="d-none d-lg-block" style={{ flexShrink: 0 }}>
-        <SidebarContent />
-      </div>
-
-      {/* Mobile Sidebar */}
+      <div className="d-none d-lg-block" style={{ flexShrink: 0 }}><SidebarContent /></div>
       <Offcanvas show={showSidebar} onHide={() => setShowSidebar(false)} style={{ width: '280px', padding: 0 }}>
-        <Offcanvas.Body className="p-0">
-          <SidebarContent />
-        </Offcanvas.Body>
+        <Offcanvas.Body className="p-0"><SidebarContent /></Offcanvas.Body>
       </Offcanvas>
 
-      {/* Main Content */}
       <div className="flex-grow-1 d-flex flex-column" style={{ minWidth: 0 }}>
-        {/* Top Bar */}
         <div className="kl-topbar">
-          <button
-            className="btn btn-sm d-lg-none"
-            style={{ background: 'var(--kl-primary)', color: '#fff', border: 'none', padding: '6px 12px' }}
-            onClick={() => setShowSidebar(true)}
-            aria-label="Open navigation menu"
-          >
+          <button className="btn btn-sm d-lg-none" style={{ background: 'var(--kl-primary)', color: '#fff', border: 'none', padding: '6px 12px' }} onClick={() => setShowSidebar(true)} aria-label="Open navigation menu">
             <i className="bi bi-list" style={{ fontSize: '1.2rem' }}></i>
           </button>
-
           <div className="flex-grow-1"></div>
-
           <Dropdown align="end">
             <Dropdown.Toggle as="button" className="kl-user-chip" id="user-menu" aria-label="User menu">
               <div className="kl-user-avatar">{getInitials(user?.name)}</div>
               <div className="d-none d-sm-block text-start">
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, lineHeight: 1.2 }}>
-                  {user?.name || 'User'}
-                </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--kl-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  {currentView}
-                </div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, lineHeight: 1.2 }}>{user?.name || 'User'}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--kl-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{currentView}</div>
               </div>
               <i className="bi bi-chevron-down ms-1" style={{ fontSize: '0.7rem', color: 'var(--kl-muted)' }}></i>
             </Dropdown.Toggle>
             <Dropdown.Menu>
-              <Dropdown.Item onClick={handleLogout}>
-                <i className="bi bi-box-arrow-right me-2"></i>
-                Sign Out
-              </Dropdown.Item>
+              <Dropdown.Item onClick={handleLogout}><i className="bi bi-box-arrow-right me-2"></i>Sign Out</Dropdown.Item>
             </Dropdown.Menu>
           </Dropdown>
         </div>
 
-        {/* Page Content */}
-        <Container
-          id="main-content"
-          tabIndex={-1}
-          fluid
-          className="p-3 p-md-4"
-          style={{ flex: 1, maxWidth: '1400px', margin: '0 auto', width: '100%' }}
-        >
+        <Container id="main-content" tabIndex={-1} fluid className="p-3 p-md-4" style={{ flex: 1, maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
           <Outlet />
         </Container>
       </div>

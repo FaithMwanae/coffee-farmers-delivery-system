@@ -1,7 +1,6 @@
 import pool from '../config/pool.js';
 
 // GET /api/staff/inputs
-// GET /api/staff/inputs (all inputs)
 export const getAllInputs = async (req, res) => {
   try {
     const result = await pool.query(
@@ -19,7 +18,18 @@ export const getAllInputs = async (req, res) => {
       deductedAmount: Number(r.deducted_amount || 0),
     })));
   } catch (error) {
+    console.error('Get inputs error:', error);
     res.status(500).json({ message: 'Server error loading inputs.' });
+  }
+};
+
+// GET /api/staff/inputs/count (For the sidebar badge)
+export const getPendingInputsCount = async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT COUNT(*) FROM inputs WHERE status = 'Requested'`);
+    res.json({ count: Number(result.rows[0].count) });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error.' });
   }
 };
 
@@ -45,7 +55,7 @@ export const updateInputStatus = async (req, res) => {
   }
 };
 
-// POST /api/staff/inputs/:id/issue (Staff gives it to farmer - triggers financials)
+// POST /api/staff/inputs/:id/issue (Staff gives approved request to farmer - triggers financials)
 export const issueInput = async (req, res) => {
   const { id } = req.params;
   const { unitCost, upfrontPercentage } = req.body;
@@ -105,7 +115,55 @@ export const issueInput = async (req, res) => {
   }
 };
 
-// POST /api/staff/inputs (Direct Entry - if farmer didn't request)
+// POST /api/staff/inputs (Direct Entry - Staff records an input without a prior farmer request)
 export const recordInput = async (req, res) => {
-  // You can keep your existing logic for direct entry here, but set status to 'Issued' automatically.
+  const { farmerId, inputType, description, quantity, unit, unitCost, upfrontPercentage } = req.body;
+  const qty = Number(quantity) || 1;
+  const cost = Number(unitCost) || 0;
+  const total = qty * cost;
+  const upPercent = Number(upfrontPercentage) >= 0 ? Number(upfrontPercentage) : 25;
+  const upfrontAmount = total * (upPercent / 100);
+  const deductedAmount = total - upfrontAmount;
+
+  if (!farmerId || !inputType) return res.status(400).json({ message: 'Farmer and input type are required.' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Save the input directly as 'Issued'
+    const inputRes = await client.query(
+      `INSERT INTO inputs 
+        (farmer_id, input_type, description, quantity, unit, unit_cost, total_cost, 
+         upfront_percentage, upfront_amount, deducted_amount, status, requested_by, recorded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Issued', 'staff', $11) RETURNING *`,
+      [farmerId, inputType, description || null, qty, unit || 'unit', cost, total, upPercent, upfrontAmount, deductedAmount, req.user.name]
+    );
+
+    // 2. Record Upfront Payment
+    if (upfrontAmount > 0) {
+      await client.query(
+        `INSERT INTO transactions (farmer_id, type, amount, description, status, input_id, requested_by)
+         VALUES ($1, 'Payment', $2, $3, 'Completed', $4, 'staff')`,
+        [farmerId, upfrontAmount, `Upfront (${upPercent}%) for ${qty} ${unit} ${inputType}`, inputRes.rows[0].id]
+      );
+    }
+
+    // 3. Record Deduction
+    if (deductedAmount > 0) {
+      await client.query(
+        `INSERT INTO transactions (farmer_id, type, amount, description, status, input_id, requested_by)
+         VALUES ($1, 'Deduction', $2, $3, 'Completed', $4, 'staff')`,
+        [farmerId, deductedAmount, `Deduction for ${qty} ${unit} ${inputType}`, inputRes.rows[0].id]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.status(201).json({ success: true, message: 'Input recorded and financials applied.' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ message: 'Server error.' });
+  } finally {
+    client.release();
+  }
 };

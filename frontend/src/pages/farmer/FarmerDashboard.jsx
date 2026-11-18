@@ -9,7 +9,7 @@ import PageHeader from '../../components/common/PageHeader';
 import ChartWrapper from '../../components/charts/ChartWrapper';
 import FarmerDeliveryChart from '../../components/charts/FarmerDeliveryChart';
 import RequestAdvanceModal from '../../components/farmer/RequestAdvanceModal';
-import RequestInputModal from '../../components/farmer/RequestInputModal'; // ⭐ Import Input Modal
+import RequestInputModal from '../../components/farmer/RequestInputModal';
 
 const FarmerDashboard = () => {
   const { user } = useAuth();
@@ -17,13 +17,13 @@ const FarmerDashboard = () => {
   const [eligibility, setEligibility] = useState(null);
   const [recentDeliveries, setRecentDeliveries] = useState([]);
   const [allDeliveries, setAllDeliveries] = useState([]);
-  const [inputs, setInputs] = useState([]); // ⭐ State for inputs
+  const [inputs, setInputs] = useState([]); 
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
   const [showAdvanceModal, setShowAdvanceModal] = useState(false);
-  const [showInputModal, setShowInputModal] = useState(false); // ⭐ State for modal
+  const [showInputModal, setShowInputModal] = useState(false);
 
   const loadData = async () => {
     try {
@@ -32,7 +32,7 @@ const FarmerDashboard = () => {
         farmerApi.getDeliveries(),
         farmerApi.getAnnouncements(),
         farmerApi.getAdvanceEligibility().catch(() => null),
-        farmerApi.getMyInputs().catch(() => []), // ⭐ Fetch inputs
+        farmerApi.getMyInputs().catch(() => []), 
       ]);
       setStats(statsData);
       setRecentDeliveries(deliveriesData.slice(0, 5));
@@ -67,6 +67,13 @@ const FarmerDashboard = () => {
 
   const firstName = (user?.name || 'Farmer').split(' ')[0];
   const canRequest = eligibility && eligibility.available > 0;
+
+  // ⭐ Helper to check if an announcement is less than 3 days old
+  const isNewAnnouncement = (dateStr) => {
+    if (!dateStr) return false;
+    const diffDays = (new Date() - new Date(dateStr)) / (1000 * 60 * 60 * 24);
+    return diffDays <= 3;
+  };
 
   return (
     <Container fluid className="px-0">
@@ -132,7 +139,7 @@ const FarmerDashboard = () => {
               </Card>
             </Col>
 
-            {/* ⭐ NEW: Farm Inputs Card */}
+            {/* Farm Inputs Card */}
             <Col xs={12} md={6}>
               <Card className="h-100">
                 <Card.Header><span>Farm Inputs</span></Card.Header>
@@ -155,7 +162,7 @@ const FarmerDashboard = () => {
         </Col>
       </Row>
 
-      {/* ⭐ NEW: Recent Input Requests Table */}
+      {/* ============ Recent Input Requests Table ============ */}
       {inputs.length > 0 && (
         <Row className="g-3 mb-4">
           <Col lg={12}>
@@ -184,7 +191,7 @@ const FarmerDashboard = () => {
                             input.status === 'Issued' ? 'success' : 
                             input.status === 'Approved' ? 'primary' : 
                             input.status === 'Rejected' ? 'danger' : 'warning'
-                          }>
+                          } text={input.status === 'Requested' ? 'dark' : undefined}>
                             {input.status}
                           </Badge>
                         </td>
@@ -256,7 +263,12 @@ const FarmerDashboard = () => {
                   <div key={a.id} className="border-bottom pb-3 mb-3">
                     <div className="d-flex justify-content-between align-items-start gap-2 mb-1">
                       <h6 className="fw-semibold mb-0" style={{ fontSize: '0.9rem' }}>{a.title}</h6>
-                      {a.priority === 'high' && <Badge bg="danger" className="fw-normal px-2 py-1">NEW</Badge>}
+                      {/* ⭐ Dynamic NEW badge based on date */}
+                      {isNewAnnouncement(a.date) && (
+                        <Badge bg="danger" className="fw-normal px-2 py-1" style={{ fontSize: '0.6rem' }}>
+                          NEW
+                        </Badge>
+                      )}
                     </div>
                     <small className="text-muted d-block mb-2">{formatDate(a.date)} · {a.author}</small>
                     <p className="mb-0" style={{ fontSize: '0.82rem', lineHeight: 1.5 }}>{a.content}</p>

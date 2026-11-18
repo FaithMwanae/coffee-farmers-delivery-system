@@ -53,6 +53,11 @@ export const staffApi = {
     return data;
   },
   
+  getPendingInputsCount: async () => {
+    const { data } = await client.get('/staff/inputs/count');
+    return data;
+  },
+
   recordInput: async (payload) => {
     const { data } = await client.post('/staff/inputs', payload);
     return data;
