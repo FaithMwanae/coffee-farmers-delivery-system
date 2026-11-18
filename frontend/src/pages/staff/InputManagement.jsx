@@ -7,19 +7,19 @@ import PageHeader from '../../components/common/PageHeader';
 import { toast } from 'react-toastify';
 
 const InputManagement = () => {
-  const [tab, setTab] = useState('requests');
+  const [tab, setTab] = useState('requests'); // 'requests' | 'history'
   const [inputs, setInputs] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // ⭐ Store the default percentage from Admin settings
   const [defaultPercentage, setDefaultPercentage] = useState(25);
 
   // Issue Modal
   const [showModal, setShowModal] = useState(false);
   const [selected, setSelected] = useState(null);
   const [unitCost, setUnitCost] = useState('');
-  const [upfrontPercentage, setUpfrontPercentage] = useState(25);
   
-  // ⭐ NEW: Payment Method States
+  // Payment Method States
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [reference, setReference] = useState('');
   
@@ -37,6 +37,7 @@ const InputManagement = () => {
     }
   };
 
+  // Fetch the Admin's default percentage on load
   useEffect(() => { 
     loadData(); 
     staffApi.getInputSettings()
@@ -60,8 +61,7 @@ const InputManagement = () => {
 
   const openIssueModal = (input) => {
     setSelected(input);
-    setUnitCost('');
-    setUpfrontPercentage(defaultPercentage);
+    setUnitCost(''); // Staff must enter current price
     setPaymentMethod('Cash'); // Reset payment method
     setReference('');         // Reset reference
     setShowModal(true);
@@ -79,9 +79,9 @@ const InputManagement = () => {
     try {
       await staffApi.issueInput(selected.id, { 
         unitCost: Number(unitCost), 
-        upfrontPercentage: Number(upfrontPercentage),
+        upfrontPercentage: Number(defaultPercentage), // ⭐ Automatically use Admin's setting
         paymentMethod: paymentMethod,
-        reference: reference.trim() // Send payment details
+        reference: reference.trim()
       });
       toast.success('Input issued and financials applied!');
       setShowModal(false);
@@ -146,7 +146,7 @@ const InputManagement = () => {
   if (loading) return <div className="text-center py-5"><Spinner animation="border" variant="success" /></div>;
 
   const formTotal = (Number(selected?.quantity) || 0) * (Number(unitCost) || 0);
-  const formUpfront = formTotal * (Number(upfrontPercentage) / 100);
+  const formUpfront = formTotal * (Number(defaultPercentage) / 100); // ⭐ Use default percentage
   const formDeducted = formTotal - formUpfront;
 
   return (
@@ -186,19 +186,9 @@ const InputManagement = () => {
                   <Form.Control type="number" min="0" required value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="e.g. 2500" />
                 </Form.Group>
 
-                <Row>
-                  <Col xs={6}>
-                    <Form.Group>
-                      <Form.Label>Farmer Pays Upfront (%)</Form.Label>
-                      <Form.Control type="number" min="0" max="100" value={upfrontPercentage} onChange={(e) => setUpfrontPercentage(e.target.value)} />
-                    </Form.Group>
-                  </Col>
-                  <Col xs={6} className="d-flex align-items-end pb-2">
-                    <Button variant="outline-secondary" size="sm" className="w-100" onClick={() => setUpfrontPercentage(100)}>Set to 100%</Button>
-                  </Col>
-                </Row>
+                {/* ⭐ Removed the Upfront % Input and Set to 100% Button */}
 
-                {/* ⭐ NEW: Payment Details Section */}
+                {/* Payment Details Section */}
                 {formUpfront > 0 && (
                   <Row className="mt-3 p-3 bg-light rounded border">
                     <Col md={6}>
@@ -229,9 +219,19 @@ const InputManagement = () => {
                 )}
 
                 <div className="border rounded p-3 mt-3 bg-light small">
-                  <div className="d-flex justify-content-between mb-1"><span>Total Cost:</span> <strong>{formatCurrency(formTotal)}</strong></div>
-                  <div className="d-flex justify-content-between mb-1 text-success"><span>Paid Upfront ({upfrontPercentage}%):</span> <strong>{formatCurrency(formUpfront)}</strong></div>
-                  <div className="d-flex justify-content-between border-top pt-1 mt-1 text-danger"><span>To be Deducted from Payment:</span> <strong>{formatCurrency(formDeducted)}</strong></div>
+                  <div className="d-flex justify-content-between mb-1">
+                    <span>Total Cost:</span> 
+                    <strong>{formatCurrency(formTotal)}</strong>
+                  </div>
+                  <div className="d-flex justify-content-between mb-1 text-success">
+                    {/* ⭐ Display the fixed percentage set by Admin */}
+                    <span>Paid Upfront ({defaultPercentage}%):</span> 
+                    <strong>{formatCurrency(formUpfront)}</strong>
+                  </div>
+                  <div className="d-flex justify-content-between border-top pt-1 mt-1 text-danger">
+                    <span>To be Deducted from Payment:</span> 
+                    <strong>{formatCurrency(formDeducted)}</strong>
+                  </div>
                 </div>
               </>
             )}
