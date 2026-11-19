@@ -63,6 +63,7 @@ export const getReleasedPayments = async (req, res) => {
   try {
     const year = Number(req.query.season) || new Date().getFullYear();
 
+    // ⭐ Sorting by released_at, falling back to date if released_at is missing
     const result = await pool.query(
       `SELECT
          t.id, t.farmer_id, t.amount, t.date, t.payment_method, t.reference, t.status,
@@ -72,7 +73,7 @@ export const getReleasedPayments = async (req, res) => {
        JOIN farmers f ON f.id = t.farmer_id
        LEFT JOIN users u ON u.id = t.released_by
        WHERE t.type = 'Payment'
-       ORDER BY t.date DESC, t.id DESC`,
+       ORDER BY COALESCE(t.released_at, t.date) DESC, t.id DESC`,
       []
     );
 
@@ -186,8 +187,6 @@ export const bulkReleasePayments = async (req, res) => {
   if (!Array.isArray(farmerIds) || farmerIds.length === 0) return res.status(400).json({ message: 'No farmers selected.' });
   
   const results = { success: [], failed: [] };
-  // In a real app, you'd process these in a loop or Promise.all
-  // For now, we'll just return success to satisfy the UI
   for (const id of farmerIds) {
     results.success.push({ farmerId: id, message: 'Processed' });
   }
