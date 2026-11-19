@@ -2,12 +2,8 @@ import express from 'express';
 import {
   getDashboard, getAllDeliveries, recordDelivery,
   getAllFarmers, registerFarmer, getAllTransactions,
-  recordTransaction, getReportSummary,
-  getChartData,
-  getFarmerAdvanceInfo,
-  getPaymentSchedule, // Keep this for schedule
-  getReleasedPayments,
-  getPaymentsGrouped,
+  recordTransaction, getReportSummary, getChartData,
+  getFarmerAdvanceInfo, getPaymentsGrouped,
 } from '../controllers/staffController.js';
 
 import { authenticate } from '../middleware/auth.js';
@@ -37,13 +33,10 @@ router.post('/farmers', auditLogger('REGISTER_FARMER', (req) => req.body.name), 
 router.get('/transactions', getAllTransactions);
 router.post('/transactions', auditLogger('RECORD_TRANSACTION', (req) => `${req.body.type} KES ${req.body.amount}`), recordTransaction);
 
-// Payment Schedules & Reads
-router.get('/payments/released', getReleasedPayments);
+// Grouped Payments (still used in staffController for some views)
 router.get('/payments/grouped', getPaymentsGrouped);
-router.get('/payments/dashboard-stats', getPaymentDashboardStats); // ⭐ New dynamic stats endpoint
-router.get('/payments', getPaymentSchedule);
 
-// ⭐ NOTE: Release and STK Push logic have been moved to paymentRoutes.js
+// ⭐ NOTE: Payment Schedule, Release, and STK Push logic have been moved to paymentRoutes.js
 // which is mounted at /api/payments in server.js
 
 // Reports
