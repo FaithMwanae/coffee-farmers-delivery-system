@@ -14,6 +14,8 @@ import ceoRoutes from './routes/ceoRoutes.js';
 import formsRoutes from './routes/formsRoutes.js';
 import verifyRoutes from './routes/verifyRoutes.js';
 import inputRoutes from './routes/inputRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js'; // ⭐ NEW IMPORT
+
 import { initEmailService, isEmailEnabled } from './config/email.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 
@@ -28,7 +30,6 @@ const PORT = process.env.PORT || 5000;
 // ============================================
 // MIDDLEWARE
 // ============================================
-// CORS — allow local dev + any Vercel + any Render URL
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
@@ -38,7 +39,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (curl, Postman, mobile apps)
+      // Allow requests with no origin (curl, Postman, mobile apps, Safaricom webhooks)
       if (!origin) return callback(null, true);
 
       // Allow explicit local origins
@@ -60,7 +61,7 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
-app.use('/api/staff/inputs', inputRoutes);
+
 // Serve uploaded files (forms, avatars, etc.)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -81,6 +82,7 @@ app.get('/', (req, res) => {
       announcements: '/api/announcements',
       forms: '/api/forms',
       verify: '/api/verify',
+      payments: '/api/payments',
       uploads: '/uploads',
     },
   });
@@ -92,12 +94,18 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api', authRoutes); // Fallback alias for /api/forgot-password etc.
 app.use('/api/farmer', farmerRoutes);
-app.use('/api/staff', staffRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ceo', ceoRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/forms', formsRoutes);
 app.use('/api/verify', verifyRoutes);
+
+// ⭐ Specific Staff Routes (Must be mounted BEFORE general /api/staff)
+app.use('/api/staff/inputs', inputRoutes);
+app.use('/api/staff', staffRoutes);
+
+// ⭐ Payment Routes
+app.use('/api/payments', paymentRoutes);
 
 // ============================================
 // ERROR HANDLING
@@ -115,7 +123,6 @@ const startServer = async () => {
     console.error('🚨 Email service init failed:', err.message);
   }
 
-  // Production-specific email check
   if (process.env.NODE_ENV === 'production' && !isEmailEnabled()) {
     console.error('');
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
