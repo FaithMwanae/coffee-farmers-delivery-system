@@ -4,27 +4,30 @@ import { allowRoles } from '../middleware/roleCheck.js';
 import { 
   releasePayment, 
   mpesaB2CCallback, 
-  mpesaTimeout 
+  mpesaTimeout,
+  collectViaStk,       // ⭐ NEW
+  mpesaStkCallback     // ⭐ NEW
 } from '../controllers/paymentController.js';
 
 const router = express.Router();
 
 // ============================================================
 // PUBLIC ROUTES (Safaricom webhooks)
-// These must NOT have the 'authenticate' middleware, because
-// Safaricom's servers do not send a JWT token.
 // ============================================================
 router.post('/mpesa/b2c-callback', mpesaB2CCallback);
 router.post('/mpesa/timeout', mpesaTimeout);
+router.post('/mpesa/stk-callback', mpesaStkCallback); // ⭐ NEW
 
 // ============================================================
 // PROTECTED ROUTES (Staff / Admin)
-// Everything below this line requires a valid user login
 // ============================================================
 router.use(authenticate);
 router.use(allowRoles('staff', 'admin'));
 
-// Trigger a payment release to a farmer
+// Trigger a payment release to a farmer (B2C)
 router.post('/release/:farmerId', releasePayment);
+
+// Trigger an STK push to collect money from a farmer
+router.post('/collect/stk', collectViaStk); // ⭐ NEW
 
 export default router;

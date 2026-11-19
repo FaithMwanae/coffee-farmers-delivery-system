@@ -86,3 +86,48 @@ export const sendB2CPayment = async ({ phone, amount, remarks, occasion, callbac
     reference: conversationId 
   };
 };
+// ============================================================
+// 4. STK Push (Collecting money FROM farmer)
+// ============================================================
+export const initiateStkPush = async ({ phone, amount, accountRef, description }) => {
+  const token = await getAccessToken();
+
+  // Format phone number
+  let msisdn = String(phone).replace(/\D/g, '');
+  if (msisdn.startsWith('0')) msisdn = '254' + msisdn.slice(1);
+  if (msisdn.length > 12) msisdn = msisdn.slice(0, 12);
+
+  // Generate Timestamp (YYYYMMDDHHmmss)
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  const timestamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+
+  // STK Password is a base64 string of Shortcode + Passkey + Timestamp
+  const shortcode = process.env.MPESA_SHORTCODE;
+  const passkey = process.env.MPESA_PASSKEY;
+  const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
+
+  const baseUrl = process.env.API_BASE_URL || 'https://kaliluni-backend.onrender.com';
+
+  const payload = {
+    BusinessShortCode: shortcode,
+    Password: password,
+    Timestamp: timestamp,
+    TransactionType: 'CustomerPayBillOnline', // Use 'CustomerBuyGoodsOnline' if you use a Till Number
+    Amount: Math.floor(amount),
+    PartyA: msisdn,      // The farmer paying
+    PartyB: shortcode,   // The cooperative receiving
+    PhoneNumber: msisdn, // The phone that gets the prompt
+    CallBackURL: `${baseUrl}/api/payments/mpesa/stk-callback`,
+    AccountReference: String(accountRef || 'KFCS-Input').slice(0, 12),
+    TransactionDesc: String(description || 'Farm Input').slice(0, 13),
+  };
+
+  const response = await axios.post(
+    `${BASE_URL}/mpesa/stkpush/v1/processrequest`,
+    payload,
+    { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+  );
+
+  return response.data; // Returns { CheckoutRequestID, ResponseCode, ... }
+};
