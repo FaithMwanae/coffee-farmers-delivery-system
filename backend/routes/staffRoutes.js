@@ -2,33 +2,21 @@ import express from 'express';
 import {
   getDashboard, getAllDeliveries, recordDelivery,
   getAllFarmers, registerFarmer, getAllTransactions,
-  recordTransaction, getPaymentSchedule, getReportSummary,
+  recordTransaction, getReportSummary,
   getChartData,
   getFarmerAdvanceInfo,
-  releasePayment,
+  getPaymentSchedule, // Keep this for schedule
   getReleasedPayments,
   getPaymentsGrouped,
-  bulkReleasePayments,
-  mpesaCallback,  // Import M-Pesa Callback
-  mpesaTimeout,   // Import M-Pesa Timeout
 } from '../controllers/staffController.js';
+
 import { authenticate } from '../middleware/auth.js';
 import { allowRoles } from '../middleware/roleCheck.js';
 import { auditLogger } from '../middleware/auditLogger.js';
 
 const router = express.Router();
 
-// ============================================
-//  PUBLIC M-PESA CALLBACK ROUTES
-// MUST be above authenticate() so Safaricom can reach them
-// without a JWT token.
-// ============================================
-router.post('/mpesa/callback', mpesaCallback);
-router.post('/mpesa/timeout', mpesaTimeout);
-
-// ============================================
 // AUTHENTICATED ROUTES
-// ============================================
 router.use(authenticate);
 router.use(allowRoles('staff', 'admin', 'ceo'));
 
@@ -49,21 +37,16 @@ router.post('/farmers', auditLogger('REGISTER_FARMER', (req) => req.body.name), 
 router.get('/transactions', getAllTransactions);
 router.post('/transactions', auditLogger('RECORD_TRANSACTION', (req) => `${req.body.type} KES ${req.body.amount}`), recordTransaction);
 
-// ============================================
-// Payments
-// ============================================
+// Payment Schedules & Reads
 router.get('/payments/released', getReleasedPayments);
 router.get('/payments/grouped', getPaymentsGrouped);
-router.post('/payments/bulk', bulkReleasePayments);
+router.get('/payments/dashboard-stats', getPaymentDashboardStats); // ⭐ New dynamic stats endpoint
 router.get('/payments', getPaymentSchedule);
-router.post(
-  '/payments/release/:farmerId',
-  auditLogger('RELEASE_PAYMENT', (req) => `Farmer #${req.params.farmerId} — KES ${req.body.amount} via ${req.body.method}`),
-  releasePayment
-);
+
+// ⭐ NOTE: Release and STK Push logic have been moved to paymentRoutes.js
+// which is mounted at /api/payments in server.js
 
 // Reports
 router.get('/reports/summary', getReportSummary);
-
 
 export default router;
