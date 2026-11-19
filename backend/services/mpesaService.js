@@ -1,11 +1,5 @@
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import crypto from 'crypto';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const BASE_URL = process.env.MPESA_ENV === 'production'
   ? 'https://api.safaricom.co.ke'
@@ -28,31 +22,21 @@ export const getAccessToken = async () => {
   );
   
   cachedToken = response.data.access_token;
-  // Token usually expires in 3600 seconds. We subtract 60s to be safe.
   tokenExpiry = Date.now() + (Number(response.data.expires_in || 3599) - 60) * 1000;
   return cachedToken;
 };
 
-// 2. Generate Security Credential (Encrypt Password)
+// 2. Generate Security Credential
+// ⭐ We are now reading this directly from Render environment variables 
+// to bypass the "DECODER routines::unsupported" error.
 export const generateSecurityCredential = () => {
-  const certPath = path.join(__dirname, '../certificates/SandboxCertificate.cer');
+  const credential = process.env.MPESA_SECURITY_CREDENTIAL;
   
-  if (!fs.existsSync(certPath)) {
-    throw new Error(`Certificate missing at ${certPath}. Did you commit it to Git?`);
+  if (!credential) {
+    throw new Error("MPESA_SECURITY_CREDENTIAL is missing from environment variables.");
   }
-
-  const certificate = fs.readFileSync(certPath, 'utf8');
-  const publicKey = crypto.createPublicKey(certificate);
-
-  const encrypted = crypto.publicEncrypt(
-    {
-      key: publicKey,
-      padding: crypto.constants.RSA_PKCS1_PADDING,
-    },
-    Buffer.from(process.env.MPESA_INITIATOR_PASSWORD)
-  );
-
-  return encrypted.toString('base64');
+  
+  return credential;
 };
 
 // 3. Send B2C Payment
@@ -68,16 +52,16 @@ export const sendB2CPayment = async ({ phone, amount, remarks, occasion, callbac
   const conversationId = callbackRef || `B2C-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 
   const payload = {
-    OriginatorConversationID: conversationId, // Important for matching
+    OriginatorConversationID: conversationId,
     InitiatorName: process.env.MPESA_INITIATOR_NAME,
-    SecurityCredential: securityCredential,
+    SecurityCredential: securityCredential, // 👈 Uses the pre-encrypted string
     CommandID: 'BusinessPayment',
     Amount: Math.floor(amount),
     PartyA: process.env.MPESA_SHORTCODE,
     PartyB: msisdn,
     Remarks: String(remarks || 'Cooperative Payment').slice(0, 100),
     
-    // ⭐ FIXED: These URLs now point to your actual payment routes
+    // These point to your actual payment routes on Render
     QueueTimeOutURL: `${process.env.API_BASE_URL}/api/payments/mpesa/timeout`,
     ResultURL: `${process.env.API_BASE_URL}/api/payments/mpesa/b2c-callback`,
     
@@ -92,6 +76,6 @@ export const sendB2CPayment = async ({ phone, amount, remarks, occasion, callbac
 
   return {
     ...response.data,
-    reference: conversationId // Pass this back to the controller to save in DB
+    reference: conversationId 
   };
 };
