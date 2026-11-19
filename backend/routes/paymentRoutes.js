@@ -5,8 +5,13 @@ import {
   releasePayment, 
   mpesaB2CCallback, 
   mpesaTimeout,
-  collectViaStk,       // ⭐ NEW
-  mpesaStkCallback     // ⭐ NEW
+  collectViaStk,
+  mpesaStkCallback,
+  getPaymentSchedule,     // ⭐ Added
+  getReleasedPayments,    // ⭐ Added
+  bulkReleasePayments,    // ⭐ Added
+  getPendingApprovals,    // ⭐ Added
+  approvePayment          // ⭐ Added
 } from '../controllers/paymentController.js';
 
 const router = express.Router();
@@ -16,7 +21,7 @@ const router = express.Router();
 // ============================================================
 router.post('/mpesa/b2c-callback', mpesaB2CCallback);
 router.post('/mpesa/timeout', mpesaTimeout);
-router.post('/mpesa/stk-callback', mpesaStkCallback); // ⭐ NEW
+router.post('/mpesa/stk-callback', mpesaStkCallback);
 
 // ============================================================
 // PROTECTED ROUTES (Staff / Admin)
@@ -24,10 +29,21 @@ router.post('/mpesa/stk-callback', mpesaStkCallback); // ⭐ NEW
 router.use(authenticate);
 router.use(allowRoles('staff', 'admin'));
 
-// Trigger a payment release to a farmer (B2C)
+// Reads (Schedule & History)
+router.get('/schedule', getPaymentSchedule);
+router.get('/released', getReleasedPayments);
+
+// Bulk release
+router.post('/bulk', bulkReleasePayments);
+
+// Single release (B2C)
 router.post('/release/:farmerId', releasePayment);
 
-// Trigger an STK push to collect money from a farmer
-router.post('/collect/stk', collectViaStk); // ⭐ NEW
+// STK Push (Collect money from farmer)
+router.post('/collect/stk', collectViaStk);
+
+// Admin approvals (optional, if you want to restrict later)
+router.get('/pending-approvals', getPendingApprovals);
+router.post('/:id/approve', approvePayment);
 
 export default router;
