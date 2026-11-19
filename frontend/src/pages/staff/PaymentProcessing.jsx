@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   Container, Card, Badge, Spinner, Alert, Row, Col, Button,
-  Modal, Form, Nav, Form as BsForm,
+  Modal, Form, Nav,
 } from 'react-bootstrap';
 import { staffApi } from '../../api/staffApi';
 import { formatCurrency, formatWeight, formatDate } from '../../utils/formatters';
@@ -138,7 +138,7 @@ const PaymentProcessing = () => {
 
   const handleConfirmRelease = async () => {
     if (!selected) return;
-    if (method !== 'Cash' && !reference.trim() && method !== 'M-Pesa') {
+    if (method !== 'Cash' && method !== 'M-Pesa' && !reference.trim()) {
       toast.error('Please enter a reference number');
       return;
     }
@@ -182,6 +182,7 @@ const PaymentProcessing = () => {
 
       await Promise.all([loadPending(), loadReleased()]);
       
+      // If M-Pesa, switch to released tab automatically so they can see the pending status
       if (method === 'M-Pesa') {
         setTab('released');
       }
@@ -273,7 +274,6 @@ const PaymentProcessing = () => {
     [payments]
   );
 
-  // ⭐ Updated to track both Completed and Pending totals
   const releasedTotals = useMemo(
     () =>
       released.reduce(
