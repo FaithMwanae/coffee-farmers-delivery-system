@@ -24,16 +24,22 @@ export const releasePayment = async (req, res) => {
     }
     const farmer = farmerRes.rows[0];
 
-    // Use M-Pesa number if available, else fallback to general phone
-    const phoneToUse = farmer.mpesa_number || farmer.phone;
+    // ⭐ FIX: Clean the phone number before sending to Safaricom
+    let phoneToUse = farmer.mpesa_number || farmer.phone;
     if (!phoneToUse) {
       await client.query('ROLLBACK');
       return res.status(400).json({ message: 'Farmer has no phone number on file.' });
     }
 
+    // Remove non-digits (+, spaces, dashes)
+    phoneToUse = phoneToUse.replace(/\D/g, '');
+    // Convert 07... to 2547...
+    if (phoneToUse.startsWith('0')) phoneToUse = '254' + phoneToUse.slice(1);
+    // Ensure it's strictly 12 digits (254 + 9 digits)
+    if (phoneToUse.length > 12) phoneToUse = phoneToUse.slice(0, 12);
+
     let txStatus = 'Completed';
     let mpesaRef = reference || `PAY-${Date.now()}`;
-    let mpesaReceipt = null;
 
     // 2. If M-Pesa, trigger the B2C API
     if (method === 'M-Pesa') {
@@ -50,9 +56,6 @@ export const releasePayment = async (req, res) => {
         mpesaRef = b2cResponse.OriginatorConversationID || b2cResponse.reference;
         
       } catch (mpesaError) {
-        // ⭐ THIS IS THE CRITICAL PART ⭐
-        // If Safaricom rejects it (400 Bad Request), we log the exact reason
-        // and throw an error so the frontend sees it.
         const errorDetails = mpesaError.response?.data || mpesaError.message;
         console.error('Safaricom B2C Error:', JSON.stringify(errorDetails, null, 2));
         
@@ -142,4 +145,3 @@ export const mpesaTimeout = async (req, res) => {
   console.log('M-Pesa Timeout:', req.body);
   res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
 };
-
