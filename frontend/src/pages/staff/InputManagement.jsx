@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Container, Card, Spinner, Row, Col, Button, Modal, Form, Nav, Badge, Alert } from 'react-bootstrap';
 import { staffApi } from '../../api/staffApi';
+import { paymentApi } from '../../api/paymentApi'; // ⭐ Import paymentApi
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import DataTable from '../../components/common/DataTable';
 import PageHeader from '../../components/common/PageHeader';
@@ -24,6 +25,7 @@ const InputManagement = () => {
   const [reference, setReference] = useState('');
   
   const [submitting, setSubmitting] = useState(false);
+  const [sendingStk, setSendingStk] = useState(false); // ⭐ STK Loading state
 
   const loadData = async () => {
     try {
@@ -61,10 +63,33 @@ const InputManagement = () => {
 
   const openIssueModal = (input) => {
     setSelected(input);
-    setUnitCost(''); // Staff must enter current price
-    setPaymentMethod('Cash'); // Reset payment method
-    setReference('');         // Reset reference
+    setUnitCost(''); 
+    setPaymentMethod('Cash'); 
+    setReference('');         
     setShowModal(true);
+  };
+
+  // ⭐ New Handler: Send STK Push
+  const handleSendStk = async () => {
+    if (!formUpfront || formUpfront <= 0) {
+      return toast.error('Unit cost must be entered first');
+    }
+    
+    setSendingStk(true);
+    try {
+      const res = await paymentApi.collectMpesa({
+        farmerId: selected.farmerId,
+        amount: formUpfront,
+        description: `Input: ${selected.inputType}`
+      });
+      toast.success('M-Pesa prompt sent! Waiting for farmer.');
+      // Optionally populate reference with the Checkout ID
+      setReference(res.checkoutRequestId || 'STK-SENT');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send STK push');
+    } finally {
+      setSendingStk(false);
+    }
   };
 
   const handleIssueSubmit = async (e) => {
@@ -79,7 +104,7 @@ const InputManagement = () => {
     try {
       await staffApi.issueInput(selected.id, { 
         unitCost: Number(unitCost), 
-        upfrontPercentage: Number(defaultPercentage), // ⭐ Automatically use Admin's setting
+        upfrontPercentage: Number(defaultPercentage),
         paymentMethod: paymentMethod,
         reference: reference.trim()
       });
@@ -146,7 +171,7 @@ const InputManagement = () => {
   if (loading) return <div className="text-center py-5"><Spinner animation="border" variant="success" /></div>;
 
   const formTotal = (Number(selected?.quantity) || 0) * (Number(unitCost) || 0);
-  const formUpfront = formTotal * (Number(defaultPercentage) / 100); // ⭐ Use default percentage
+  const formUpfront = formTotal * (Number(defaultPercentage) / 100); 
   const formDeducted = formTotal - formUpfront;
 
   return (
@@ -186,8 +211,6 @@ const InputManagement = () => {
                   <Form.Control type="number" min="0" required value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="e.g. 2500" />
                 </Form.Group>
 
-                {/* ⭐ Removed the Upfront % Input and Set to 100% Button */}
-
                 {/* Payment Details Section */}
                 {formUpfront > 0 && (
                   <Row className="mt-3 p-3 bg-light rounded border">
@@ -196,7 +219,8 @@ const InputManagement = () => {
                         <Form.Label>Payment Method *</Form.Label>
                         <Form.Select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
                           <option value="Cash">Cash</option>
-                          <option value="M-Pesa">M-Pesa</option>
+                          <option value="M-Pesa STK">M-Pesa (STK Push)</option>
+                          <option value="M-Pesa Code">M-Pesa (Manual Code)</option>
                           <option value="Bank Transfer">Bank Transfer</option>
                         </Form.Select>
                       </Form.Group>
@@ -208,13 +232,32 @@ const InputManagement = () => {
                         </Form.Label>
                         <Form.Control 
                           type="text" 
-                          placeholder={paymentMethod === 'M-Pesa' ? 'e.g. QK12AB34CD' : paymentMethod === 'Bank Transfer' ? 'e.g. TRF-12345' : 'e.g. Voucher #'}
+                          placeholder={
+                            paymentMethod === 'M-Pesa STK' ? 'Click Send Prompt below' : 
+                            paymentMethod === 'M-Pesa Code' ? 'e.g. QK12AB34CD' : 
+                            paymentMethod === 'Bank Transfer' ? 'e.g. TRF-12345' : 
+                            'e.g. Voucher #'
+                          }
                           value={reference}
                           onChange={(e) => setReference(e.target.value)}
                           required={paymentMethod !== 'Cash'}
                         />
                       </Form.Group>
                     </Col>
+                    
+                    {/* ⭐ ADDED: Send STK Push Button */}
+                    {paymentMethod === 'M-Pesa STK' && (
+                      <Col xs={12} className="mt-3">
+                        <Button 
+                          variant="outline-success" 
+                          className="w-100" 
+                          onClick={handleSendStk} 
+                          disabled={sendingStk || !formUpfront}
+                        >
+                          {sendingStk ? 'Sending Prompt...' : `Send M-Pesa Prompt (KES ${formUpfront.toLocaleString()})`}
+                        </Button>
+                      </Col>
+                    )}
                   </Row>
                 )}
 
@@ -224,7 +267,6 @@ const InputManagement = () => {
                     <strong>{formatCurrency(formTotal)}</strong>
                   </div>
                   <div className="d-flex justify-content-between mb-1 text-success">
-                    {/* ⭐ Display the fixed percentage set by Admin */}
                     <span>Paid Upfront ({defaultPercentage}%):</span> 
                     <strong>{formatCurrency(formUpfront)}</strong>
                   </div>
