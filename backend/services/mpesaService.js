@@ -27,8 +27,6 @@ export const getAccessToken = async () => {
 };
 
 // 2. Generate Security Credential
-// ⭐ We are now reading this directly from Render environment variables 
-// to bypass the "DECODER routines::unsupported" error.
 export const generateSecurityCredential = () => {
   const credential = process.env.MPESA_SECURITY_CREDENTIAL;
   
@@ -44,26 +42,35 @@ export const sendB2CPayment = async ({ phone, amount, remarks, occasion, callbac
   const token = await getAccessToken();
   const securityCredential = generateSecurityCredential();
 
-  // Format phone: 0712345678 or +254712345678 -> 254712345678
-  let msisdn = String(phone).replace(/\D/g, ''); // Remove all non-digits
-  if (msisdn.startsWith('0')) msisdn = '254' + msisdn.slice(1);
+  // ⭐ FIX 1: Strict Phone Number Formatting (Always 12 digits: 254XXXXXXXXX)
+  let msisdn = String(phone).replace(/\D/g, ''); // Remove +, spaces, dashes
+  if (msisdn.startsWith('0')) {
+    msisdn = '254' + msisdn.slice(1);
+  }
+  // Safaricom strictly requires 12 digits. If it's 13 (e.g., 2547110872684), cut it to 12.
+  if (msisdn.length > 12) {
+    msisdn = msisdn.slice(0, 12);
+  }
   
   // Generate a unique reference so we can match the callback later
   const conversationId = callbackRef || `B2C-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 
+  // ⭐ FIX 2: Prevent "undefined" in the callback URLs
+  const baseUrl = process.env.API_BASE_URL || 'https://kaliluni-backend.onrender.com';
+
   const payload = {
     OriginatorConversationID: conversationId,
     InitiatorName: process.env.MPESA_INITIATOR_NAME,
-    SecurityCredential: securityCredential, // 👈 Uses the pre-encrypted string
+    SecurityCredential: securityCredential,
     CommandID: 'BusinessPayment',
     Amount: Math.floor(amount),
     PartyA: process.env.MPESA_SHORTCODE,
     PartyB: msisdn,
     Remarks: String(remarks || 'Cooperative Payment').slice(0, 100),
     
-    // These point to your actual payment routes on Render
-    QueueTimeOutURL: `${process.env.API_BASE_URL}/api/payments/mpesa/timeout`,
-    ResultURL: `${process.env.API_BASE_URL}/api/payments/mpesa/b2c-callback`,
+    // ⭐ Use the baseUrl variable here
+    QueueTimeOutURL: `${baseUrl}/api/payments/mpesa/timeout`,
+    ResultURL: `${baseUrl}/api/payments/mpesa/b2c-callback`,
     
     Occasion: String(occasion || 'Payout').slice(0, 100),
   };
