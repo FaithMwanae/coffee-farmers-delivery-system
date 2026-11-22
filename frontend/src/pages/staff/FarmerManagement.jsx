@@ -12,7 +12,15 @@ const FarmerManagement = () => {
   const [error, setError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: '', phone: '', location: '' });
+  
+  // ⭐ Added email and password to match the backend requirements
+  const [form, setForm] = useState({ 
+    name: '', 
+    email: '',
+    phone: '', 
+    location: '',
+    password: ''
+  });
 
   const loadFarmers = async () => {
     try {
@@ -34,19 +42,27 @@ const FarmerManagement = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.phone || !form.location) {
-      toast.error('Please fill all fields');
+    if (!form.name || !form.email || !form.phone || !form.location || !form.password) {
+      toast.error('Please fill all required fields');
       return;
     }
+    
+    // Validate phone number format
+    const cleanPhone = form.phone.replace(/\D/g, '');
+    if (!/^(2547|2541)\d{8}$/.test(cleanPhone)) {
+      toast.error('Phone number must be 12 digits starting with 2547 or 2541');
+      return;
+    }
+
     setSaving(true);
     try {
       const newFarmer = await staffApi.registerFarmer(form);
       toast.success(`Farmer registered: ${newFarmer.memberNo}`);
       setShowModal(false);
-      setForm({ name: '', phone: '', location: '' });
+      setForm({ name: '', email: '', phone: '', location: '', password: '' });
       loadFarmers();
     } catch (err) {
-      toast.error('Failed to register farmer');
+      toast.error(err.response?.data?.message || 'Failed to register farmer');
     } finally {
       setSaving(false);
     }
@@ -54,11 +70,11 @@ const FarmerManagement = () => {
 
   const columns = [
     { key: 'memberNo', label: 'Member No.', render: (v) => <code>{v}</code> },
-    { key: 'name', label: 'Name' },
+    { key: 'name', label: 'Name', render: (v) => <span className="fw-semibold">{v}</span> },
     { key: 'phone', label: 'Phone' },
     { key: 'location', label: 'Location' },
-    { key: 'totalDelivered', label: 'Total Delivered', render: (v) => formatWeight(v) },
-    { key: 'joinDate', label: 'Joined', render: (v) => formatDate(v) },
+    { key: 'totalDelivered', label: 'Total Delivered', render: (v) => <span className="num">{formatWeight(v)}</span> },
+    { key: 'joinDate', label: 'Joined', render: (v) => <span className="small text-muted">{formatDate(v)}</span> },
     {
       key: 'status',
       label: 'Status',
@@ -70,6 +86,7 @@ const FarmerManagement = () => {
     return (
       <div className="text-center py-5">
         <Spinner animation="border" variant="success" />
+        <p className="text-muted mt-3 small">Loading farmers...</p>
       </div>
     );
   }
@@ -77,50 +94,68 @@ const FarmerManagement = () => {
   if (error) return <Alert variant="danger">{error}</Alert>;
 
   return (
-    <Container fluid>
+    <Container fluid className="px-0">
       <PageHeader
         title="Farmer Management"
         subtitle={`${farmers.length} registered farmers`}
         action={
           <Button variant="success" onClick={() => setShowModal(true)}>
-            ➕ Register New Farmer
+            <i className="bi bi-person-plus me-1"></i> Register New Farmer
           </Button>
         }
       />
 
-      <Row className="mb-3">
-        <Col md={4} sm={6} className="mb-2">
-          <Card className="border-0 shadow-sm bg-success text-white">
-            <Card.Body>
-              <small className="text-uppercase opacity-75">Active Farmers</small>
-              <h3 className="fw-bold mb-0">{farmers.filter((f) => f.status === 'Active').length}</h3>
+      {/* ⭐ Clean Bootstrap stat cards with accent borders */}
+      <Row className="g-3 mb-4">
+        <Col md={4}>
+          <Card className="border-0 shadow-sm border-start border-4 border-success h-100">
+            <Card.Body className="d-flex align-items-center">
+              <div className="bg-success bg-opacity-10 p-3 rounded-circle me-3 text-success">
+                <i className="bi bi-people-fill fs-4"></i>
+              </div>
+              <div>
+                <div className="text-muted small fw-bold text-uppercase mb-1">Active Farmers</div>
+                <h3 className="mb-0 fw-bold">{farmers.filter((f) => f.status === 'Active').length}</h3>
+              </div>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={4} sm={6} className="mb-2">
-          <Card className="border-0 shadow-sm bg-info text-white">
-            <Card.Body>
-              <small className="text-uppercase opacity-75">Total Delivered</small>
-              <h3 className="fw-bold mb-0">
-                {formatWeight(farmers.reduce((s, f) => s + f.totalDelivered, 0))}
-              </h3>
+
+        <Col md={4}>
+          <Card className="border-0 shadow-sm border-start border-4 border-info h-100">
+            <Card.Body className="d-flex align-items-center">
+              <div className="bg-info bg-opacity-10 p-3 rounded-circle me-3 text-info">
+                <i className="bi bi-box-seam fs-4"></i>
+              </div>
+              <div>
+                <div className="text-muted small fw-bold text-uppercase mb-1">Total Delivered</div>
+                <h3 className="mb-0 fw-bold">
+                  {formatWeight(farmers.reduce((s, f) => s + (Number(f.totalDelivered) || 0), 0))}
+                </h3>
+              </div>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={4} sm={6} className="mb-2">
-          <Card className="border-0 shadow-sm bg-warning text-white">
-            <Card.Body>
-              <small className="text-uppercase opacity-75">Locations</small>
-              <h3 className="fw-bold mb-0">
-                {new Set(farmers.map((f) => f.location)).size}
-              </h3>
+
+        <Col md={4}>
+          <Card className="border-0 shadow-sm border-start border-4 border-warning h-100">
+            <Card.Body className="d-flex align-items-center">
+              <div className="bg-warning bg-opacity-10 p-3 rounded-circle me-3 text-warning">
+                <i className="bi bi-geo-alt fs-4"></i>
+              </div>
+              <div>
+                <div className="text-muted small fw-bold text-uppercase mb-1">Locations</div>
+                <h3 className="mb-0 fw-bold">
+                  {new Set(farmers.map((f) => f.location).filter(Boolean)).size}
+                </h3>
+              </div>
             </Card.Body>
           </Card>
         </Col>
       </Row>
 
-      <Card className="shadow-sm border-0">
-        <Card.Body>
+      <Card className="border-0 shadow-sm">
+        <Card.Body className="p-0">
           <DataTable
             columns={columns}
             data={farmers}
@@ -132,14 +167,14 @@ const FarmerManagement = () => {
       </Card>
 
       {/* Register Modal */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered>
+      <Modal show={showModal} onHide={() => setShowModal(false)} centered backdrop="static">
         <Modal.Header closeButton>
-          <Modal.Title>Register New Farmer</Modal.Title>
+          <Modal.Title style={{ fontSize: '1.1rem' }}>Register New Farmer</Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleSubmit}>
           <Modal.Body>
             <Form.Group className="mb-3">
-              <Form.Label>Full Name *</Form.Label>
+              <Form.Label className="small fw-semibold text-secondary">Full Name *</Form.Label>
               <Form.Control
                 name="name"
                 value={form.name}
@@ -149,17 +184,34 @@ const FarmerManagement = () => {
               />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Phone Number *</Form.Label>
+              <Form.Label className="small fw-semibold text-secondary">Email Address *</Form.Label>
               <Form.Control
-                name="phone"
-                value={form.phone}
+                type="email"
+                name="email"
+                value={form.email}
                 onChange={handleChange}
-                placeholder="e.g., 0712345678"
+                placeholder="farmer@example.com"
                 required
               />
             </Form.Group>
             <Form.Group className="mb-3">
-              <Form.Label>Location *</Form.Label>
+              <Form.Label className="small fw-semibold text-secondary">Phone Number *</Form.Label>
+              <Form.Control
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+                placeholder="e.g., 254712345678"
+                type="tel"
+                pattern="^(2547|2541)\d{8}$"
+                title="Must be exactly 12 digits starting with 2547 or 2541"
+                required
+              />
+              <Form.Text className="text-muted">
+                Must be 12 digits starting with 2547 or 2541.
+              </Form.Text>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-semibold text-secondary">Location / Village *</Form.Label>
               <Form.Control
                 name="location"
                 value={form.location}
@@ -168,16 +220,32 @@ const FarmerManagement = () => {
                 required
               />
             </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-semibold text-secondary">Initial Password *</Form.Label>
+              <Form.Control
+                type="password"
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                placeholder="Minimum 6 characters"
+                minLength={6}
+                required
+              />
+              <Form.Text className="text-muted">
+                The farmer will use this to log in. Share it with them securely.
+              </Form.Text>
+            </Form.Group>
             <Alert variant="info" className="mb-0 small">
+              <i className="bi bi-info-circle me-1"></i>
               A unique member number will be generated automatically.
             </Alert>
           </Modal.Body>
           <Modal.Footer>
-            <Button variant="secondary" onClick={() => setShowModal(false)}>
+            <Button variant="outline-secondary" size="sm" onClick={() => setShowModal(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="success" disabled={saving}>
-              {saving ? 'Saving...' : 'Register Farmer'}
+            <Button type="submit" variant="success" size="sm" disabled={saving}>
+              {saving ? <><Spinner as="span" animation="border" size="sm" className="me-2" />Saving...</> : 'Register Farmer'}
             </Button>
           </Modal.Footer>
         </Form>
