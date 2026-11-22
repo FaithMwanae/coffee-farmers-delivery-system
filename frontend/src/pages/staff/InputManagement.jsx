@@ -1,18 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Container, Card, Spinner, Row, Col, Button, Modal, Form, Nav, Badge, Alert } from 'react-bootstrap';
+import { Container, Card, Spinner, Row, Col, Button, Modal, Form, Nav, Badge, Alert, Dropdown } from 'react-bootstrap';
 import { staffApi } from '../../api/staffApi';
-import { paymentApi } from '../../api/paymentApi'; // ⭐ Import paymentApi
+import { paymentApi } from '../../api/paymentApi';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import DataTable from '../../components/common/DataTable';
 import PageHeader from '../../components/common/PageHeader';
 import { toast } from 'react-toastify';
+
+// ⭐ Import export libraries
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const InputManagement = () => {
   const [tab, setTab] = useState('requests'); // 'requests' | 'history'
   const [inputs, setInputs] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // ⭐ Store the default percentage from Admin settings
   const [defaultPercentage, setDefaultPercentage] = useState(25);
 
   // Issue Modal
@@ -25,7 +29,7 @@ const InputManagement = () => {
   const [reference, setReference] = useState('');
   
   const [submitting, setSubmitting] = useState(false);
-  const [sendingStk, setSendingStk] = useState(false); // ⭐ STK Loading state
+  const [sendingStk, setSendingStk] = useState(false);
 
   const loadData = async () => {
     try {
@@ -39,7 +43,6 @@ const InputManagement = () => {
     }
   };
 
-  // Fetch the Admin's default percentage on load
   useEffect(() => { 
     loadData(); 
     staffApi.getInputSettings()
@@ -69,7 +72,6 @@ const InputManagement = () => {
     setShowModal(true);
   };
 
-  // ⭐ New Handler: Send STK Push
   const handleSendStk = async () => {
     if (!formUpfront || formUpfront <= 0) {
       return toast.error('Unit cost must be entered first');
@@ -83,7 +85,6 @@ const InputManagement = () => {
         description: `Input: ${selected.inputType}`
       });
       toast.success('M-Pesa prompt sent! Waiting for farmer.');
-      // Optionally populate reference with the Checkout ID
       setReference(res.checkoutRequestId || 'STK-SENT');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to send STK push');
@@ -94,8 +95,6 @@ const InputManagement = () => {
 
   const handleIssueSubmit = async (e) => {
     e.preventDefault();
-    
-    // Prevent submit if reference is required but empty
     if (formUpfront > 0 && paymentMethod !== 'Cash' && !reference.trim()) {
        return toast.error('Please enter a reference number');
     }
@@ -120,6 +119,65 @@ const InputManagement = () => {
 
   const requests = inputs.filter(i => i.status === 'Requested' || i.status === 'Approved');
   const history = inputs.filter(i => i.status === 'Issued' || i.status === 'Rejected');
+
+  // ============================================
+  // Export Functions
+  // ============================================
+  const exportToExcel = () => {
+    const dataToExport = history.map(h => ({
+      'Date': formatDate(h.date),
+      'Member No': h.memberNo,
+      'Farmer Name': h.farmerName,
+      'Input Type': h.inputType,
+      'Quantity': `${h.quantity} ${h.unit}`,
+      'Total Cost (KES)': h.totalCost,
+      'Paid Upfront (KES)': h.upfrontAmount,
+      'Deducted (KES)': h.deductedAmount,
+      'Payment Method': h.upfrontPaymentMethod || 'N/A',
+      'Status': h.status
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Issued Inputs');
+    XLSX.writeFile(wb, `Farm_Inputs_History_${new Date().toISOString().slice(0,10)}.xlsx`);
+    toast.success('Excel downloaded');
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    doc.text('Kaliluni Farmers Co-op - Issued Inputs History', 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
+
+    const tableColumn = ["Date", "Member No", "Farmer", "Input", "Cost", "Upfront", "Status"];
+    const tableRows = [];
+
+    history.forEach(h => {
+      const rowData = [
+        formatDate(h.date),
+        h.memberNo,
+        h.farmerName,
+        `${h.inputType} (${h.quantity} ${h.unit})`,
+        formatCurrency(h.totalCost),
+        formatCurrency(h.upfrontAmount),
+        h.status
+      ];
+      tableRows.push(rowData);
+    });
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 30,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [40, 167, 69] } // Green header
+    });
+
+    doc.save(`Farm_Inputs_History_${new Date().toISOString().slice(0,10)}.pdf`);
+    toast.success('PDF downloaded');
+  };
 
   const requestColumns = [
     { key: 'date', label: 'Date', render: (v) => <span className="text-muted small">{formatDate(v)}</span> },
@@ -179,17 +237,36 @@ const InputManagement = () => {
       <PageHeader title="Farm Input Management" subtitle="Approve requests and issue inputs to farmers" />
 
       <Card className="border-0 shadow-sm">
-        <Card.Header className="bg-white border-bottom p-0">
-          <Nav variant="tabs" className="payment-tabs">
+        <Card.Header className="bg-white border-bottom p-0 d-flex justify-content-between align-items-center pr-3">
+          <Nav variant="tabs" className="payment-tabs flex-grow-1 border-0">
             <Nav.Item><Nav.Link active={tab === 'requests'} onClick={() => setTab('requests')}>Pending Requests {requests.length > 0 && <Badge bg="danger" className="ms-2">{requests.length}</Badge>}</Nav.Link></Nav.Item>
             <Nav.Item><Nav.Link active={tab === 'history'} onClick={() => setTab('history')}>Issued History</Nav.Link></Nav.Item>
           </Nav>
+
+          {/* ⭐ EXPORT BUTTONS - Only show on History Tab */}
+          {tab === 'history' && history.length > 0 && (
+            <Dropdown align="end">
+              <Dropdown.Toggle variant="outline-secondary" size="sm" id="dropdown-export" className="me-3">
+                <i className="bi bi-download me-1"></i> Export Data
+              </Dropdown.Toggle>
+              <Dropdown.Menu>
+                <Dropdown.Item onClick={exportToExcel}>
+                  <i className="bi bi-file-earmark-excel text-success me-2"></i> Download as Excel
+                </Dropdown.Item>
+                <Dropdown.Item onClick={exportToPDF}>
+                  <i className="bi bi-file-earmark-pdf text-danger me-2"></i> Download as PDF
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
+          )}
         </Card.Header>
+        
         <Card.Body className="p-0">
           {tab === 'requests' ? (
              requests.length === 0 ? <div className="text-center py-5 text-muted">No pending requests.</div> :
              <DataTable columns={requestColumns} data={requests} itemsPerPage={10} />
           ) : (
+             history.length === 0 ? <div className="text-center py-5 text-muted">No input history yet.</div> :
              <DataTable columns={historyColumns} data={history} itemsPerPage={10} />
           )}
         </Card.Body>
@@ -211,7 +288,6 @@ const InputManagement = () => {
                   <Form.Control type="number" min="0" required value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="e.g. 2500" />
                 </Form.Group>
 
-                {/* Payment Details Section */}
                 {formUpfront > 0 && (
                   <Row className="mt-3 p-3 bg-light rounded border">
                     <Col md={6}>
@@ -245,7 +321,6 @@ const InputManagement = () => {
                       </Form.Group>
                     </Col>
                     
-                    {/* ⭐ ADDED: Send STK Push Button */}
                     {paymentMethod === 'M-Pesa STK' && (
                       <Col xs={12} className="mt-3">
                         <Button 
