@@ -10,18 +10,12 @@ import PasswordStrengthMeter from '../../components/forms/PasswordStrengthMeter'
 import { toast } from 'react-toastify';
 
 const KENYAN_BANKS = [
-  'Equity Bank',
-  'KCB Bank',
-  'Co-operative Bank',
-  'NCBA Bank',
-  'Absa Bank',
-  'Stanbic Bank',
-  'Family Bank',
-  'DTB Bank',
-  'Standard Chartered',
-  'Barclays',
-  'Other',
+  'Equity Bank', 'KCB Bank', 'Co-operative Bank', 'NCBA Bank', 'Absa Bank',
+  'Stanbic Bank', 'Family Bank', 'DTB Bank', 'Standard Chartered', 'Barclays', 'Other',
 ];
+
+// ⭐ Regex for 2547XXXXXXX or 2541XXXXXXX
+const PHONE_REGEX = /^(2547|2541)\d{8}$/;
 
 const FarmerProfile = () => {
   const { user, refreshUser } = useAuth();
@@ -31,11 +25,7 @@ const FarmerProfile = () => {
 
   // Personal info
   const [profile, setProfile] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    location: '',
-    memberNo: '',
+    name: '', email: '', phone: '', location: '', memberNo: '',
   });
 
   // Payment details
@@ -51,9 +41,7 @@ const FarmerProfile = () => {
 
   // Password form
   const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
+    currentPassword: '', newPassword: '', confirmPassword: '',
   });
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -111,11 +99,21 @@ const FarmerProfile = () => {
   // ============================================
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
+    
+    // ⭐ Validate phone number before submitting
+    if (profile.phone) {
+      const cleanPhone = profile.phone.replace(/\D/g, ''); // Remove spaces
+      if (!PHONE_REGEX.test(cleanPhone)) {
+        toast.error('Phone number must be exactly 12 digits and start with 2547 or 2541 (e.g., 254712345678)');
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       await farmerApi.updateProfile({
         name: profile.name,
-        phone: profile.phone,
+        phone: profile.phone.replace(/\D/g, ''), // Send clean number
         location: profile.location,
       });
       await refreshUser();
@@ -134,6 +132,14 @@ const FarmerProfile = () => {
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
 
+    if (paymentDetails.mpesaNumber) {
+      const cleanMpesa = paymentDetails.mpesaNumber.replace(/\D/g, '');
+      if (!PHONE_REGEX.test(cleanMpesa)) {
+        toast.error('M-Pesa number must be exactly 12 digits and start with 2547 or 2541 (e.g., 254712345678)');
+        return;
+      }
+    }
+
     if (
       !paymentDetails.mpesaNumber &&
       !paymentDetails.bankAccountNo &&
@@ -146,24 +152,20 @@ const FarmerProfile = () => {
     setSavingPayment(true);
     try {
       const result = await farmerApi.updatePaymentDetails({
-        mpesaNumber: paymentDetails.mpesaNumber,
+        mpesaNumber: paymentDetails.mpesaNumber.replace(/\D/g, ''),
         bankName: paymentDetails.bankName,
         bankAccountNo: paymentDetails.bankAccountNo,
         bankBranch: paymentDetails.bankBranch,
         preferredPaymentMethod: paymentDetails.preferredPaymentMethod,
       });
 
-      // Update local state with response
       if (result.paymentDetails) {
         setPaymentDetails({ ...paymentDetails, ...result.paymentDetails });
       }
-
       toast.success('Payment details saved — will be verified by staff');
     } catch (err) {
       console.error(err);
-      toast.error(
-        err.response?.data?.message || 'Failed to save payment details'
-      );
+      toast.error(err.response?.data?.message || 'Failed to save payment details');
     } finally {
       setSavingPayment(false);
     }
@@ -200,16 +202,10 @@ const FarmerProfile = () => {
         confirmPassword: passwordForm.confirmPassword,
       });
       toast.success('Password updated successfully');
-      setPasswordForm({
-        currentPassword: '',
-        newPassword: '',
-        confirmPassword: '',
-      });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (err) {
       console.error(err);
-      setPasswordError(
-        err.response?.data?.message || 'Failed to update password'
-      );
+      setPasswordError(err.response?.data?.message || 'Failed to update password');
     } finally {
       setSavingPassword(false);
     }
@@ -230,120 +226,70 @@ const FarmerProfile = () => {
 
   return (
     <Container fluid className="px-0">
-      <PageHeader
-        title="My Profile"
-        subtitle="Manage your personal information, payment details, and account security"
-      />
+      <PageHeader title="My Profile" subtitle="Manage your personal information, payment details, and account security" />
 
       <Row className="g-3 mb-3">
-        {/* ============================ */}
         {/* PERSONAL INFORMATION */}
-        {/* ============================ */}
         <Col lg={7}>
           <Card className="h-100">
-            <Card.Header>
-              <span>Personal Information</span>
-            </Card.Header>
+            <Card.Header><span>Personal Information</span></Card.Header>
             <Card.Body>
               <Form onSubmit={handleProfileSubmit}>
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Member Number
-                  </Form.Label>
-                  <Form.Control
-                    value={profile.memberNo}
-                    disabled
-                    style={{ background: '#f8f9fa' }}
-                  />
-                  <Form.Text className="text-muted">
-                    Assigned by the cooperative. Cannot be changed.
-                  </Form.Text>
+                  <Form.Label className="small fw-semibold text-secondary">Member Number</Form.Label>
+                  <Form.Control value={profile.memberNo} disabled style={{ background: '#f8f9fa' }} />
+                  <Form.Text className="text-muted">Assigned by the cooperative. Cannot be changed.</Form.Text>
                 </Form.Group>
 
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Full Name
-                  </Form.Label>
-                  <Form.Control
-                    name="name"
-                    value={profile.name}
-                    onChange={handleProfileChange}
-                    placeholder="Your full name"
-                  />
+                  <Form.Label className="small fw-semibold text-secondary">Full Name</Form.Label>
+                  <Form.Control name="name" value={profile.name} onChange={handleProfileChange} placeholder="Your full name" />
                 </Form.Group>
 
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Email Address
-                  </Form.Label>
-                  <Form.Control
-                    value={profile.email}
-                    disabled
-                    style={{ background: '#f8f9fa' }}
-                  />
-                  <Form.Text className="text-muted">
-                    Contact administration to update your email.
-                  </Form.Text>
+                  <Form.Label className="small fw-semibold text-secondary">Email Address</Form.Label>
+                  <Form.Control value={profile.email} disabled style={{ background: '#f8f9fa' }} />
+                  <Form.Text className="text-muted">Contact administration to update your email.</Form.Text>
                 </Form.Group>
 
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Phone Number
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Phone Number</Form.Label>
                   <Form.Control
                     name="phone"
                     value={profile.phone}
                     onChange={handleProfileChange}
-                    placeholder="e.g., 0712345678"
+                    placeholder="e.g., 254712345678"
+                    type="tel"
+                    // ⭐ Enforce format on frontend
+                    pattern="^(2547|2541)\d{8}$"
+                    title="Phone number must be 12 digits and start with 2547 or 2541"
                   />
+                  <Form.Text className="text-muted">
+                    Must be exactly 12 digits starting with 2547 or 2541 (e.g., 254712345678).
+                  </Form.Text>
                 </Form.Group>
 
                 <Form.Group className="mb-4">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Location / Village
-                  </Form.Label>
-                  <Form.Control
-                    name="location"
-                    value={profile.location}
-                    onChange={handleProfileChange}
-                    placeholder="e.g., Kathiani"
-                  />
+                  <Form.Label className="small fw-semibold text-secondary">Location / Village</Form.Label>
+                  <Form.Control name="location" value={profile.location} onChange={handleProfileChange} placeholder="e.g., Kathiani" />
                 </Form.Group>
 
-                <Button
-                  type="submit"
-                  variant="success"
-                  disabled={saving}
-                  size="sm"
-                >
-                  {saving ? (
-                    <>
-                      <Spinner as="span" animation="border" size="sm" className="me-2" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Changes'
-                  )}
+                <Button type="submit" variant="success" disabled={saving} size="sm">
+                  {saving ? <><Spinner as="span" animation="border" size="sm" className="me-2" />Saving...</> : 'Save Changes'}
                 </Button>
               </Form>
             </Card.Body>
           </Card>
         </Col>
 
-        {/* ============================ */}
         {/* SECURITY & PASSWORD */}
-        {/* ============================ */}
         <Col lg={5}>
           <Card className="h-100">
-            <Card.Header>
-              <span>Security & Password</span>
-            </Card.Header>
+            <Card.Header><span>Security & Password</span></Card.Header>
             <Card.Body>
               <Form onSubmit={handlePasswordSubmit}>
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Current Password
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Current Password</Form.Label>
                   <InputGroup>
                     <Form.Control
                       type={showCurrent ? 'text' : 'password'}
@@ -353,22 +299,14 @@ const FarmerProfile = () => {
                       placeholder="Enter current password"
                       autoComplete="current-password"
                     />
-                    <Button
-                      variant="outline-secondary"
-                      type="button"
-                      onClick={() => setShowCurrent(!showCurrent)}
-                      tabIndex={-1}
-                      style={{ fontSize: '0.7rem', letterSpacing: '0.5px' }}
-                    >
+                    <Button variant="outline-secondary" type="button" onClick={() => setShowCurrent(!showCurrent)} tabIndex={-1} style={{ fontSize: '0.7rem', letterSpacing: '0.5px' }}>
                       {showCurrent ? 'HIDE' : 'SHOW'}
                     </Button>
                   </InputGroup>
                 </Form.Group>
 
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    New Password
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">New Password</Form.Label>
                   <InputGroup>
                     <Form.Control
                       type={showNew ? 'text' : 'password'}
@@ -378,13 +316,7 @@ const FarmerProfile = () => {
                       placeholder="Enter strong new password"
                       autoComplete="new-password"
                     />
-                    <Button
-                      variant="outline-secondary"
-                      type="button"
-                      onClick={() => setShowNew(!showNew)}
-                      tabIndex={-1}
-                      style={{ fontSize: '0.7rem', letterSpacing: '0.5px' }}
-                    >
+                    <Button variant="outline-secondary" type="button" onClick={() => setShowNew(!showNew)} tabIndex={-1} style={{ fontSize: '0.7rem', letterSpacing: '0.5px' }}>
                       {showNew ? 'HIDE' : 'SHOW'}
                     </Button>
                   </InputGroup>
@@ -392,9 +324,7 @@ const FarmerProfile = () => {
                 </Form.Group>
 
                 <Form.Group className="mb-3">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Confirm New Password
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Confirm New Password</Form.Label>
                   <InputGroup>
                     <Form.Control
                       type={showConfirm ? 'text' : 'password'}
@@ -404,35 +334,19 @@ const FarmerProfile = () => {
                       placeholder="Re-enter new password"
                       autoComplete="new-password"
                     />
-                    <Button
-                      variant="outline-secondary"
-                      type="button"
-                      onClick={() => setShowConfirm(!showConfirm)}
-                      tabIndex={-1}
-                      style={{ fontSize: '0.7rem', letterSpacing: '0.5px' }}
-                    >
+                    <Button variant="outline-secondary" type="button" onClick={() => setShowConfirm(!showConfirm)} tabIndex={-1} style={{ fontSize: '0.7rem', letterSpacing: '0.5px' }}>
                       {showConfirm ? 'HIDE' : 'SHOW'}
                     </Button>
                   </InputGroup>
-                  {passwordForm.confirmPassword &&
-                    passwordForm.newPassword !== passwordForm.confirmPassword && (
-                      <Form.Text className="text-danger">
-                        Passwords do not match
-                      </Form.Text>
-                    )}
-                  {passwordForm.confirmPassword &&
-                    passwordForm.newPassword === passwordForm.confirmPassword && (
-                      <Form.Text className="text-success">
-                        Passwords match
-                      </Form.Text>
-                    )}
+                  {passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword && (
+                    <Form.Text className="text-danger">Passwords do not match</Form.Text>
+                  )}
+                  {passwordForm.confirmPassword && passwordForm.newPassword === passwordForm.confirmPassword && (
+                    <Form.Text className="text-success">Passwords match</Form.Text>
+                  )}
                 </Form.Group>
 
-                {passwordError && (
-                  <Alert variant="danger" className="py-2 small">
-                    {passwordError}
-                  </Alert>
-                )}
+                {passwordError && <Alert variant="danger" className="py-2 small">{passwordError}</Alert>}
 
                 <Alert variant="light" className="small border">
                   <strong>Password requirements:</strong>
@@ -444,20 +358,8 @@ const FarmerProfile = () => {
                   </ul>
                 </Alert>
 
-                <Button
-                  type="submit"
-                  variant="success"
-                  disabled={savingPassword}
-                  size="sm"
-                >
-                  {savingPassword ? (
-                    <>
-                      <Spinner as="span" animation="border" size="sm" className="me-2" />
-                      Updating...
-                    </>
-                  ) : (
-                    'Update Password'
-                  )}
+                <Button type="submit" variant="success" disabled={savingPassword} size="sm">
+                  {savingPassword ? <><Spinner as="span" animation="border" size="sm" className="me-2" />Updating...</> : 'Update Password'}
                 </Button>
               </Form>
             </Card.Body>
@@ -465,61 +367,30 @@ const FarmerProfile = () => {
         </Col>
       </Row>
 
-      {/* ============================ */}
       {/* PAYMENT DETAILS */}
-      {/* ============================ */}
       <Row className="g-3">
         <Col lg={12}>
           <Card>
             <Card.Header className="d-flex justify-content-between align-items-center">
-              <span>
-                <i className="bi bi-credit-card me-2"></i>
-                Payment Details
-              </span>
+              <span><i className="bi bi-credit-card me-2"></i>Payment Details</span>
               {paymentDetails.paymentDetailsVerified ? (
-                <Badge bg="success" className="fw-normal">
-                  <i className="bi bi-patch-check-fill me-1"></i>Verified
-                </Badge>
+                <Badge bg="success" className="fw-normal"><i className="bi bi-patch-check-fill me-1"></i>Verified</Badge>
               ) : (
-                <Badge bg="warning" text="dark" className="fw-normal">
-                  <i className="bi bi-clock me-1"></i>Pending Verification
-                </Badge>
+                <Badge bg="warning" text="dark" className="fw-normal"><i className="bi bi-clock me-1"></i>Pending Verification</Badge>
               )}
             </Card.Header>
             <Card.Body>
               <Alert variant="light" className="small border mb-4">
                 <i className="bi bi-info-circle me-1"></i>
-                These details are used to send your payments. Make sure they're correct.
-                Staff will verify them before processing.
+                These details are used to send your payments. Make sure they're correct. Staff will verify them before processing.
               </Alert>
 
               <Form onSubmit={handlePaymentSubmit}>
-                {/* Preferred method */}
                 <Form.Group className="mb-4">
-                  <Form.Label className="small fw-semibold text-secondary">
-                    Preferred Payment Method *
-                  </Form.Label>
+                  <Form.Label className="small fw-semibold text-secondary">Preferred Payment Method *</Form.Label>
                   <div>
-                    <Form.Check
-                      inline
-                      type="radio"
-                      id="pref-mpesa"
-                      name="preferredPaymentMethod"
-                      value="M-Pesa"
-                      label="M-Pesa"
-                      checked={paymentDetails.preferredPaymentMethod === 'M-Pesa'}
-                      onChange={handlePaymentChange}
-                    />
-                    <Form.Check
-                      inline
-                      type="radio"
-                      id="pref-bank"
-                      name="preferredPaymentMethod"
-                      value="Bank Transfer"
-                      label="Bank Transfer"
-                      checked={paymentDetails.preferredPaymentMethod === 'Bank Transfer'}
-                      onChange={handlePaymentChange}
-                    />
+                    <Form.Check inline type="radio" id="pref-mpesa" name="preferredPaymentMethod" value="M-Pesa" label="M-Pesa" checked={paymentDetails.preferredPaymentMethod === 'M-Pesa'} onChange={handlePaymentChange} />
+                    <Form.Check inline type="radio" id="pref-bank" name="preferredPaymentMethod" value="Bank Transfer" label="Bank Transfer" checked={paymentDetails.preferredPaymentMethod === 'Bank Transfer'} onChange={handlePaymentChange} />
                   </div>
                 </Form.Group>
 
@@ -528,23 +399,21 @@ const FarmerProfile = () => {
                   <Col md={6}>
                     <Card className="h-100 border">
                       <Card.Body>
-                        <h6 className="fw-semibold mb-3">
-                          <i className="bi bi-phone text-success me-2"></i>
-                          M-Pesa
-                        </h6>
+                        <h6 className="fw-semibold mb-3"><i className="bi bi-phone text-success me-2"></i>M-Pesa</h6>
                         <Form.Group>
-                          <Form.Label className="small fw-semibold text-secondary">
-                            M-Pesa Phone Number
-                          </Form.Label>
+                          <Form.Label className="small fw-semibold text-secondary">M-Pesa Phone Number</Form.Label>
                           <Form.Control
                             type="tel"
                             name="mpesaNumber"
                             value={paymentDetails.mpesaNumber}
                             onChange={handlePaymentChange}
-                            placeholder="e.g., 0712345678"
+                            placeholder="e.g., 254712345678"
+                            // ⭐ Enforce format on frontend
+                            pattern="^(2547|2541)\d{8}$"
+                            title="M-Pesa number must be 12 digits and start with 2547 or 2541"
                           />
                           <Form.Text className="text-muted">
-                            Payments will be sent to this number.
+                            Must be exactly 12 digits starting with 2547 or 2541.
                           </Form.Text>
                         </Form.Group>
                       </Card.Body>
@@ -555,49 +424,21 @@ const FarmerProfile = () => {
                   <Col md={6}>
                     <Card className="h-100 border">
                       <Card.Body>
-                        <h6 className="fw-semibold mb-3">
-                          <i className="bi bi-bank text-primary me-2"></i>
-                          Bank Account
-                        </h6>
-
+                        <h6 className="fw-semibold mb-3"><i className="bi bi-bank text-primary me-2"></i>Bank Account</h6>
                         <Form.Group className="mb-3">
-                          <Form.Label className="small fw-semibold text-secondary">
-                            Bank Name
-                          </Form.Label>
-                          <Form.Select
-                            name="bankName"
-                            value={paymentDetails.bankName}
-                            onChange={handlePaymentChange}
-                          >
+                          <Form.Label className="small fw-semibold text-secondary">Bank Name</Form.Label>
+                          <Form.Select name="bankName" value={paymentDetails.bankName} onChange={handlePaymentChange}>
                             <option value="">Select your bank...</option>
-                            {KENYAN_BANKS.map((b) => (
-                              <option key={b} value={b}>{b}</option>
-                            ))}
+                            {KENYAN_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
                           </Form.Select>
                         </Form.Group>
-
                         <Form.Group className="mb-3">
-                          <Form.Label className="small fw-semibold text-secondary">
-                            Account Number
-                          </Form.Label>
-                          <Form.Control
-                            name="bankAccountNo"
-                            value={paymentDetails.bankAccountNo}
-                            onChange={handlePaymentChange}
-                            placeholder="e.g., 0123456789"
-                          />
+                          <Form.Label className="small fw-semibold text-secondary">Account Number</Form.Label>
+                          <Form.Control name="bankAccountNo" value={paymentDetails.bankAccountNo} onChange={handlePaymentChange} placeholder="e.g., 0123456789" />
                         </Form.Group>
-
                         <Form.Group>
-                          <Form.Label className="small fw-semibold text-secondary">
-                            Branch (optional)
-                          </Form.Label>
-                          <Form.Control
-                            name="bankBranch"
-                            value={paymentDetails.bankBranch}
-                            onChange={handlePaymentChange}
-                            placeholder="e.g., Machakos Branch"
-                          />
+                          <Form.Label className="small fw-semibold text-secondary">Branch (optional)</Form.Label>
+                          <Form.Control name="bankBranch" value={paymentDetails.bankBranch} onChange={handlePaymentChange} placeholder="e.g., Machakos Branch" />
                         </Form.Group>
                       </Card.Body>
                     </Card>
@@ -605,23 +446,8 @@ const FarmerProfile = () => {
                 </Row>
 
                 <div className="mt-4 d-flex justify-content-end">
-                  <Button
-                    type="submit"
-                    variant="success"
-                    disabled={savingPayment}
-                    size="sm"
-                  >
-                    {savingPayment ? (
-                      <>
-                        <Spinner as="span" animation="border" size="sm" className="me-2" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <i className="bi bi-check2 me-1"></i>
-                        Save Payment Details
-                      </>
-                    )}
+                  <Button type="submit" variant="success" disabled={savingPayment} size="sm">
+                    {savingPayment ? <><Spinner as="span" animation="border" size="sm" className="me-2" />Saving...</> : <><i className="bi bi-check2 me-1"></i>Save Payment Details</>}
                   </Button>
                 </div>
               </Form>
