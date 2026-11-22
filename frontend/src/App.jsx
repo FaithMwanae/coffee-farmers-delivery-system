@@ -52,7 +52,6 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 function App() {
   return (
     <>
-      {/* Accessibility — skip link for keyboard/screen-reader users */}
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
@@ -67,21 +66,13 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
         </Route>
 
-        {/* MAINTENANCE — standalone, no layout */}
+        {/* MAINTENANCE */}
         <Route path="/maintenance" element={<Maintenance />} />
 
-        {/* ⭐ RECEIPT VERIFICATION — public, no auth needed */}
+        {/* RECEIPT VERIFICATION */}
         <Route path="/verify/:receipt" element={<VerifyReceipt />} />
 
-        <Route
-  path="/staff/inputs"
-  element={
-    <ProtectedRoute allowedRoles={['staff', 'admin', 'ceo']}>
-      <InputManagement />
-    </ProtectedRoute>
- }
-/>
-        {/* ============ PROTECTED ROUTES ============ */}
+        {/* ============ PROTECTED ROUTES (WITH LAYOUT) ============ */}
         <Route element={<DashboardLayout />}>
           {/* ----- FARMER ----- */}
           <Route path="/farmer/dashboard" element={<ProtectedRoute allowedRoles={['farmer', 'staff', 'admin', 'ceo']}><FarmerDashboard /></ProtectedRoute>} />
@@ -96,6 +87,10 @@ function App() {
           <Route path="/staff/record-delivery" element={<ProtectedRoute allowedRoles={['staff', 'admin', 'ceo']}><RecordDelivery /></ProtectedRoute>} />
           <Route path="/staff/deliveries" element={<ProtectedRoute allowedRoles={['staff', 'admin', 'ceo']}><RecordDelivery /></ProtectedRoute>} />
           <Route path="/staff/farmers" element={<ProtectedRoute allowedRoles={['staff', 'admin', 'ceo']}><FarmerManagement /></ProtectedRoute>} />
+          
+          {/* ⭐ MOVED INSIDE: Farm Inputs now has the sidebar layout */}
+          <Route path="/staff/inputs" element={<ProtectedRoute allowedRoles={['staff', 'admin', 'ceo']}><InputManagement /></ProtectedRoute>} />
+          
           <Route path="/staff/transactions" element={<ProtectedRoute allowedRoles={['staff', 'admin', 'ceo']}><TransactionManagement /></ProtectedRoute>} />
           <Route path="/staff/payments" element={<ProtectedRoute allowedRoles={['staff', 'admin', 'ceo']}><PaymentProcessing /></ProtectedRoute>} />
           <Route path="/staff/reports" element={<ProtectedRoute allowedRoles={['staff', 'admin', 'ceo']}><StaffReports /></ProtectedRoute>} />
@@ -114,7 +109,7 @@ function App() {
           <Route path="/ceo/analytics" element={<ProtectedRoute allowedRoles={['ceo', 'admin']}><Analytics /></ProtectedRoute>} />
           <Route path="/ceo/audit-logs" element={<ProtectedRoute allowedRoles={['ceo', 'admin']}><AuditLogs /></ProtectedRoute>} />
 
-          {/* ----- SHARED (any logged-in user) ----- */}
+          {/* ----- SHARED ----- */}
           <Route path="/become-farmer" element={<ProtectedRoute><BecomeFarmer /></ProtectedRoute>} />
         </Route>
 
