@@ -12,13 +12,14 @@ import { auditLogger } from '../middleware/auditLogger.js';
 
 const router = express.Router();
 
+// ============================================
 // AUTHENTICATED ROUTES
+// ============================================
 router.use(authenticate);
 router.use(allowRoles('staff', 'admin', 'ceo'));
 
 // Dashboard
 router.get('/dashboard', getDashboard);
-router.get('/charts', getChartData);
 
 // Deliveries
 router.get('/deliveries', getAllDeliveries);
@@ -33,13 +34,16 @@ router.post('/farmers', auditLogger('REGISTER_FARMER', (req) => req.body.name), 
 router.get('/transactions', getAllTransactions);
 router.post('/transactions', auditLogger('RECORD_TRANSACTION', (req) => `${req.body.type} KES ${req.body.amount}`), recordTransaction);
 
-// Grouped Payments (still used in staffController for some views)
+// Grouped Payments
 router.get('/payments/grouped', getPaymentsGrouped);
+
+// ============================================
+// REPORTS & ANALYTICS (Staff + CEO)
+// ============================================
+router.get('/reports/summary', getReportSummary);
+router.get('/charts', getChartData);
 
 // ⭐ NOTE: Payment Schedule, Release, and STK Push logic have been moved to paymentRoutes.js
 // which is mounted at /api/payments in server.js
-
-// Reports
-router.get('/reports/summary', getReportSummary);
 
 export default router;
