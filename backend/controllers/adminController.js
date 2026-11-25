@@ -201,7 +201,8 @@ const mapSettings = (s = {}) => ({
   advanceRatePerKg: Number(s.advance_rate_per_kg ?? 30),
   cooperativeFee: Number(s.cooperative_fee ?? 1200),
   loanInterestRate: Number(s.loan_interest_rate ?? 5),
-  inputUpfrontPercentage: Number(s.input_upfront_percentage ?? 25), // ⭐ NEW
+  inputUpfrontPercentage: Number(s.input_upfront_percentage ?? 25),
+  defaultInputPrice: Number(s.default_input_price ?? 1000), // New
   seasonStart: s.season_start
     ? (typeof s.season_start === 'object'
         ? s.season_start.toISOString().split('T')[0]
@@ -249,7 +250,8 @@ export const updateSettings = async (req, res) => {
     advanceRatePerKg,
     cooperativeFee,
     loanInterestRate,
-    inputUpfrontPercentage, // ⭐ NEW
+    inputUpfrontPercentage,
+    defaultInputPrice, // New
     seasonStart,
     seasonEnd,
     currentSeason,
@@ -268,11 +270,11 @@ export const updateSettings = async (req, res) => {
     if (existing.rows.length === 0) {
       result = await pool.query(
         `INSERT INTO settings
-           (rate_per_kg, advance_rate_per_kg, cooperative_fee, loan_interest_rate, input_upfront_percentage,
+           (rate_per_kg, advance_rate_per_kg, cooperative_fee, loan_interest_rate, input_upfront_percentage, default_input_price,
             season_start, season_end, current_season,
             sms_notifications, email_notifications, maintenance_mode,
             maintenance_message, maintenance_start, maintenance_end)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          RETURNING *`,
         [
           ratePerKg,
@@ -280,6 +282,7 @@ export const updateSettings = async (req, res) => {
           cooperativeFee,
           loanInterestRate,
           inputUpfrontPercentage || 25,
+          defaultInputPrice || 1000,
           seasonStart || null,
           seasonEnd || null,
           currentSeason,
@@ -299,16 +302,17 @@ export const updateSettings = async (req, res) => {
           cooperative_fee = COALESCE($3, cooperative_fee),
           loan_interest_rate = COALESCE($4, loan_interest_rate),
           input_upfront_percentage = COALESCE($5, input_upfront_percentage),
-          season_start = COALESCE($6, season_start),
-          season_end = COALESCE($7, season_end),
-          current_season = COALESCE($8, current_season),
-          sms_notifications = COALESCE($9, sms_notifications),
-          email_notifications = COALESCE($10, email_notifications),
-          maintenance_mode = COALESCE($11, maintenance_mode),
-          maintenance_message = COALESCE($12, maintenance_message),
-          maintenance_start = $13,
-          maintenance_end = $14
-         WHERE id = $15
+          default_input_price = COALESCE($6, default_input_price),
+          season_start = COALESCE($7, season_start),
+          season_end = COALESCE($8, season_end),
+          current_season = COALESCE($9, current_season),
+          sms_notifications = COALESCE($10, sms_notifications),
+          email_notifications = COALESCE($11, email_notifications),
+          maintenance_mode = COALESCE($12, maintenance_mode),
+          maintenance_message = COALESCE($13, maintenance_message),
+          maintenance_start = $14,
+          maintenance_end = $15
+         WHERE id = $16
          RETURNING *`,
         [
           ratePerKg,
@@ -316,6 +320,7 @@ export const updateSettings = async (req, res) => {
           cooperativeFee,
           loanInterestRate,
           inputUpfrontPercentage,
+          defaultInputPrice, // New parameter
           seasonStart || null,
           seasonEnd || null,
           currentSeason,
