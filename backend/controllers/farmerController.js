@@ -6,6 +6,15 @@ const getFarmerForUser = async (userId) => {
   return result.rows[0];
 };
 
+// ⭐ Helper: Format Kenyan phone numbers to strict 2547... or 2541... 12 digits
+const formatKenyanPhone = (phone) => {
+  if (!phone) return null;
+  let cleaned = String(phone).replace(/\D/g, ''); // Remove spaces, +, -
+  if (cleaned.startsWith('0')) cleaned = '254' + cleaned.slice(1);
+  if (cleaned.length > 12) cleaned = cleaned.slice(0, 12); // Force 12 digits
+  return cleaned;
+};
+
 // GET /api/farmer/dashboard
 export const getDashboard = async (req, res) => {
   try {
@@ -156,6 +165,14 @@ export const updateProfile = async (req, res) => {
 
     const { phone, location, name } = req.body;
 
+    let formattedPhone = farmer.phone;
+    if (phone) {
+      formattedPhone = formatKenyanPhone(phone);
+      if (!/^(2547|2541)\d{8}$/.test(formattedPhone)) {
+        return res.status(400).json({ message: 'Phone must be a valid 12-digit number starting with 2547 or 2541.' });
+      }
+    }
+
     if (name) {
       await pool.query('UPDATE users SET name = $1 WHERE id = $2', [name, req.user.id]);
     }
@@ -167,7 +184,7 @@ export const updateProfile = async (req, res) => {
            name = COALESCE($3, name)
        WHERE id = $4
        RETURNING *`,
-      [phone, location, name, farmer.id]
+      [formattedPhone, location, name, farmer.id]
     );
 
     const updated = result.rows[0];
@@ -206,6 +223,11 @@ export const enableFarmerProfile = async (req, res) => {
     });
   }
 
+  const formattedPhone = formatKenyanPhone(phone);
+  if (!/^(2547|2541)\d{8}$/.test(formattedPhone)) {
+    return res.status(400).json({ message: 'Phone must be a valid 12-digit number starting with 2547 or 2541.' });
+  }
+
   try {
     const existing = await pool.query(
       'SELECT * FROM farmers WHERE user_id = $1',
@@ -225,7 +247,7 @@ export const enableFarmerProfile = async (req, res) => {
         (user_id, member_no, name, phone, location, coffee_trees, total_delivered, status)
        VALUES ($1, $2, $3, $4, $5, $6, 0, 'Active')
        RETURNING *`,
-      [req.user.id, memberNo, req.user.name, phone.trim(), location.trim(), numTrees]
+      [req.user.id, memberNo, req.user.name, formattedPhone, location.trim(), numTrees]
     );
 
     try {
@@ -498,12 +520,13 @@ export const updatePaymentDetails = async (req, res) => {
         .json({ message: 'Preferred method must be M-Pesa or Bank Transfer.' });
     }
 
+    let formattedMpesa = farmer.mpesa_number;
     if (mpesaNumber && mpesaNumber.trim()) {
-      const clean = String(mpesaNumber).replace(/\s/g, '');
-      if (!/^(254|0|\+254)\d{9}$/.test(clean)) {
+      formattedMpesa = formatKenyanPhone(mpesaNumber);
+      if (!/^(2547|2541)\d{8}$/.test(formattedMpesa)) {
         return res
           .status(400)
-          .json({ message: 'Please enter a valid Kenyan M-Pesa number.' });
+          .json({ message: 'M-Pesa number must be a valid 12-digit number starting with 2547 or 2541.' });
       }
     }
 
@@ -518,7 +541,7 @@ export const updatePaymentDetails = async (req, res) => {
        WHERE id = $6
        RETURNING *`,
       [
-        mpesaNumber || null,
+        formattedMpesa || null,
         bankName || null,
         bankAccountNo || null,
         bankBranch || null,
@@ -589,7 +612,6 @@ export const getMyInputs = async (req, res) => {
     const farmer = await getFarmerForUser(req.user.id);
     if (!farmer) return res.status(404).json({ message: 'Farmer profile not found.' });
 
-    // ⭐ FIXED: Fetch the financial details and payment method
     const result = await pool.query(
       `SELECT id, input_type, description, quantity, unit, total_cost, status, date,
               upfront_amount, deducted_amount, upfront_payment_method
