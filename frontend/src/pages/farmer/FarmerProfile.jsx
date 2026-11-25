@@ -14,8 +14,17 @@ const KENYAN_BANKS = [
   'Stanbic Bank', 'Family Bank', 'DTB Bank', 'Standard Chartered', 'Barclays', 'Other',
 ];
 
-// ⭐ Regex for 2547XXXXXXX or 2541XXXXXXX
+// Regex for 2547XXXXXXX or 2541XXXXXXX
 const PHONE_REGEX = /^(2547|2541)\d{8}$/;
+
+// Helper to auto-format the phone number as the user types
+const formatPhoneInput = (value) => {
+  let cleaned = String(value).replace(/\D/g, ''); // Remove all non-digits
+  if (cleaned.startsWith('0')) {
+    cleaned = '254' + cleaned.slice(1);
+  }
+  return cleaned.slice(0, 12); // Limit to 12 digits max
+};
 
 const FarmerProfile = () => {
   const { user, refreshUser } = useAuth();
@@ -85,35 +94,41 @@ const FarmerProfile = () => {
     load();
   }, [user]);
 
-  const handleProfileChange = (e) =>
-    setProfile({ ...profile, [e.target.name]: e.target.value });
+  const handleProfileChange = (e) => {
+    const { name, value } = e.target;
+    if (name === 'phone') {
+      setProfile({ ...profile, phone: formatPhoneInput(value) });
+    } else {
+      setProfile({ ...profile, [name]: value });
+    }
+  };
 
-  const handlePaymentChange = (e) =>
-    setPaymentDetails({ ...paymentDetails, [e.target.name]: e.target.value });
+  const handlePaymentChange = (e) => {
+    const { name, value } = e.target;
+    if (name === 'mpesaNumber') {
+      setPaymentDetails({ ...paymentDetails, mpesaNumber: formatPhoneInput(value) });
+    } else {
+      setPaymentDetails({ ...paymentDetails, [name]: value });
+    }
+  };
 
   const handlePasswordChange = (e) =>
     setPasswordForm({ ...passwordForm, [e.target.name]: e.target.value });
 
-  // ============================================
   // Save profile
-  // ============================================
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     
-    // ⭐ Validate phone number before submitting
-    if (profile.phone) {
-      const cleanPhone = profile.phone.replace(/\D/g, ''); // Remove spaces
-      if (!PHONE_REGEX.test(cleanPhone)) {
-        toast.error('Phone number must be exactly 12 digits and start with 2547 or 2541 (e.g., 254712345678)');
-        return;
-      }
+    if (profile.phone && !PHONE_REGEX.test(profile.phone)) {
+      toast.error('Phone number must be exactly 12 digits and start with 2547 or 2541 (e.g., 254712345678)');
+      return;
     }
 
     setSaving(true);
     try {
       await farmerApi.updateProfile({
         name: profile.name,
-        phone: profile.phone.replace(/\D/g, ''), // Send clean number
+        phone: profile.phone,
         location: profile.location,
       });
       await refreshUser();
@@ -126,18 +141,13 @@ const FarmerProfile = () => {
     }
   };
 
-  // ============================================
   // Save payment details
-  // ============================================
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
 
-    if (paymentDetails.mpesaNumber) {
-      const cleanMpesa = paymentDetails.mpesaNumber.replace(/\D/g, '');
-      if (!PHONE_REGEX.test(cleanMpesa)) {
-        toast.error('M-Pesa number must be exactly 12 digits and start with 2547 or 2541 (e.g., 254712345678)');
-        return;
-      }
+    if (paymentDetails.mpesaNumber && !PHONE_REGEX.test(paymentDetails.mpesaNumber)) {
+      toast.error('M-Pesa number must be exactly 12 digits and start with 2547 or 2541 (e.g., 254712345678)');
+      return;
     }
 
     if (
@@ -152,7 +162,7 @@ const FarmerProfile = () => {
     setSavingPayment(true);
     try {
       const result = await farmerApi.updatePaymentDetails({
-        mpesaNumber: paymentDetails.mpesaNumber.replace(/\D/g, ''),
+        mpesaNumber: paymentDetails.mpesaNumber,
         bankName: paymentDetails.bankName,
         bankAccountNo: paymentDetails.bankAccountNo,
         bankBranch: paymentDetails.bankBranch,
@@ -171,9 +181,7 @@ const FarmerProfile = () => {
     }
   };
 
-  // ============================================
   // Change password
-  // ============================================
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setPasswordError('');
@@ -260,7 +268,6 @@ const FarmerProfile = () => {
                     onChange={handleProfileChange}
                     placeholder="e.g., 254712345678"
                     type="tel"
-                    // ⭐ Enforce format on frontend
                     pattern="^(2547|2541)\d{8}$"
                     title="Phone number must be 12 digits and start with 2547 or 2541"
                   />
@@ -408,7 +415,6 @@ const FarmerProfile = () => {
                             value={paymentDetails.mpesaNumber}
                             onChange={handlePaymentChange}
                             placeholder="e.g., 254712345678"
-                            // ⭐ Enforce format on frontend
                             pattern="^(2547|2541)\d{8}$"
                             title="M-Pesa number must be 12 digits and start with 2547 or 2541"
                           />
