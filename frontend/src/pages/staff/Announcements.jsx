@@ -21,7 +21,6 @@ const Announcements = () => {
     priority: 'normal',
   });
   
-  // State for file upload
   const [file, setFile] = useState(null);
 
   const loadAnnouncements = async () => {
@@ -54,7 +53,7 @@ const Announcements = () => {
       content: a.content,
       priority: a.priority || 'normal',
     });
-    setFile(null); // Reset file input on edit
+    setFile(null);
     setShowModal(true);
   };
 
@@ -71,7 +70,6 @@ const Announcements = () => {
 
     setSaving(true);
     try {
-      // Use FormData to handle file uploads
       const formData = new FormData();
       formData.append('title', form.title);
       formData.append('content', form.content);
@@ -125,8 +123,6 @@ const Announcements = () => {
   }
 
   if (error) return <Alert variant="danger">{error}</Alert>;
-
-  const API_URL = import.meta.env.VITE_API_URL || 'https://kaliluni-backend.onrender.com';
 
   return (
     <Container fluid className="px-0">
@@ -184,13 +180,13 @@ const Announcements = () => {
                     {a.content}
                   </p>
 
-                  {/* Show attachment if exists */}
+                  {/* Use the direct Cloudinary URL */}
                   {a.attachment_url && (
                     <div className="mb-3">
                       <Button
                         variant="outline-success"
                         size="sm"
-                        href={`${API_URL}${a.attachment_url}`}
+                        href={a.attachment_url}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{ fontSize: '0.8rem' }}
@@ -294,7 +290,6 @@ const Announcements = () => {
               </div>
             </Form.Group>
 
-            {/* File Upload Input */}
             <Form.Group className="mb-3">
               <Form.Label className="small fw-semibold text-secondary">
                 Attachment (Optional)
