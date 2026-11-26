@@ -14,7 +14,7 @@ import ceoRoutes from './routes/ceoRoutes.js';
 import formsRoutes from './routes/formsRoutes.js';
 import verifyRoutes from './routes/verifyRoutes.js';
 import inputRoutes from './routes/inputRoutes.js';
-import paymentRoutes from './routes/paymentRoutes.js'; // ⭐ NEW IMPORT
+import paymentRoutes from './routes/paymentRoutes.js';
 
 import { initEmailService, isEmailEnabled } from './config/email.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
@@ -48,7 +48,7 @@ app.use(
       // Allow any Vercel preview/production URL
       if (/\.vercel\.app$/.test(origin)) return callback(null, true);
 
-      // Allow any Render URL (backend calling itself, etc.)
+      // Allow any Render URL
       if (/\.onrender\.com$/.test(origin)) return callback(null, true);
 
       // Reject everything else
@@ -62,7 +62,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Serve uploaded files (forms, avatars, etc.)
+// Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ============================================
@@ -92,7 +92,7 @@ app.get('/', (req, res) => {
 // ROUTES
 // ============================================
 app.use('/api/auth', authRoutes);
-app.use('/api', authRoutes); // Fallback alias for /api/forgot-password etc.
+app.use('/api', authRoutes);
 app.use('/api/farmer', farmerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ceo', ceoRoutes);
@@ -100,11 +100,11 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/forms', formsRoutes);
 app.use('/api/verify', verifyRoutes);
 
-// ⭐ Specific Staff Routes (Must be mounted BEFORE general /api/staff)
+// Specific Staff Routes (Must be mounted BEFORE general /api/staff)
 app.use('/api/staff/inputs', inputRoutes);
 app.use('/api/staff', staffRoutes);
 
-// ⭐ Payment Routes
+// Payment Routes
 app.use('/api/payments', paymentRoutes);
 
 // ============================================
@@ -123,12 +123,13 @@ const startServer = async () => {
     console.error('🚨 Email service init failed:', err.message);
   }
 
+  // Production-specific email check
   if (process.env.NODE_ENV === 'production' && !isEmailEnabled()) {
     console.error('');
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('🚨 PRODUCTION RUNNING WITHOUT EMAIL');
     console.error('   Password reset flows will silently fail.');
-    console.error('   Set EMAIL_USER and EMAIL_PASS in Render env vars:');
+    console.error('   Set RESEND_API_KEY in Render env vars:');
     console.error('   → dashboard.render.com → kaliluni-backend → Environment');
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('');
@@ -141,7 +142,7 @@ const startServer = async () => {
     console.log('═══════════════════════════════════════════');
     console.log(` Server running on: http://localhost:${PORT}`);
     console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(` Email service: ${isEmailEnabled() ? '✅ enabled' : '❌ disabled'}`);
+    console.log(` Email service: ${isEmailEnabled() ? '✅ enabled (Resend)' : '❌ disabled'}`);
     console.log('═══════════════════════════════════════════');
     console.log('');
   });
