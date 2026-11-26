@@ -109,29 +109,29 @@ const startServer = async () => {
   try {
     await initEmailService();
   } catch (err) {
-    console.error('🚨 Email service init failed:', err.message);
+    console.error('Email service init failed:', err.message);
   }
 
   if (process.env.NODE_ENV === 'production' && !isEmailEnabled()) {
     console.error('');
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error('🚨 PRODUCTION RUNNING WITHOUT EMAIL');
+    console.error('--------------------------------------------------');
+    console.error('PRODUCTION RUNNING WITHOUT EMAIL');
     console.error('   Password reset flows will silently fail.');
     console.error('   Set RESEND_API_KEY in Render env vars:');
-    console.error('   → dashboard.render.com → kaliluni-backend → Environment');
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('   -> dashboard.render.com -> kaliluni-backend -> Environment');
+    console.error('--------------------------------------------------');
     console.error('');
   }
 
   app.listen(PORT, () => {
     console.log('');
-    console.log('═══════════════════════════════════════════');
+    console.log('===========================================');
     console.log(' KALILUNI COFFEE API SERVER');
-    console.log('═══════════════════════════════════════════');
+    console.log('===========================================');
     console.log(` Server running on: http://localhost:${PORT}`);
     console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(` Email service: ${isEmailEnabled() ? '✅ enabled (Resend)' : '❌ disabled'}`);
-    console.log('═══════════════════════════════════════════');
+    console.log(` Email service: ${isEmailEnabled() ? 'enabled (Resend)' : 'disabled'}`);
+    console.log('===========================================');
     console.log('');
   });
 };
