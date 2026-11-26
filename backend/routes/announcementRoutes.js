@@ -10,14 +10,12 @@ import {
 import { authenticate } from '../middleware/auth.js';
 import { allowRoles } from '../middleware/roleCheck.js';
 
-// 1. Configure Multer for file storage
+// 1. Configure Multer
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Files will be saved to the 'uploads' directory in your backend root
-    cb(null, 'uploads/'); 
+    cb(null, 'uploads/'); // Make sure this folder exists
   },
   filename: (req, file, cb) => {
-    // Create a unique filename to prevent overwriting
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, uniqueSuffix + path.extname(file.originalname));
   },
@@ -25,19 +23,16 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // Limit to 5MB
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
 });
 
 const router = express.Router();
 
-// All routes require authentication
 router.use(authenticate);
 
-// Read — any authenticated user
 router.get('/', getAllAnnouncements);
 
-// Write — staff or admin only
-// Note: We add upload.single('attachment') here so it processes the file
+// 2. Add upload.single('attachment') to the POST route
 router.post(
   '/', 
   allowRoles('staff', 'admin'), 
@@ -45,7 +40,7 @@ router.post(
   createAnnouncement
 );
 
-// If you want to allow updating the attachment, add upload.single('attachment') here too
+// 3. Add upload.single('attachment') to the PUT route
 router.put(
   '/:id', 
   allowRoles('staff', 'admin'), 

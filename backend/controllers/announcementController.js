@@ -26,16 +26,35 @@ export const upload = multer({
   }
 });
 
-// 2. Create Announcement
+// 2. Get All Announcements
+export const getAllAnnouncements = async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM announcements ORDER BY date DESC');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get announcements error:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+};
+
+// 3. Create Announcement
 export const createAnnouncement = async (req, res) => {
-  const { title, content, author, priority } = req.body;
+  const { title, content, priority } = req.body;
+  
+  // Use the logged-in user's name as the author
+  const author = req.user ? req.user.name : 'Admin';
+  
   const attachmentUrl = req.file ? `/uploads/announcements/${req.file.filename}` : null;
+
+  if (!title || !content) {
+    return res.status(400).json({ message: 'Title and content are required.' });
+  }
 
   try {
     const result = await pool.query(
       `INSERT INTO announcements (title, content, author, priority, attachment_url, date)
        VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *`,
-      [title, content, author || 'Admin', priority || 'normal', attachmentUrl]
+      [title, content, author, priority || 'normal', attachmentUrl]
     );
     res.status(201).json({ success: true, announcement: result.rows[0] });
   } catch (error) {
@@ -44,23 +63,43 @@ export const createAnnouncement = async (req, res) => {
   }
 };
 
-// 3. Get All Announcements (Farmers + Staff)
-export const getAnnouncements = async (req, res) => {
+// 4. Update Announcement
+export const updateAnnouncement = async (req, res) => {
+  const { id } = req.params;
+  const { title, content, priority } = req.body;
+  
+  const attachmentUrl = req.file ? `/uploads/announcements/${req.file.filename}` : undefined;
+
   try {
-    const result = await pool.query('SELECT * FROM announcements ORDER BY date DESC');
-    res.json(result.rows);
+    const result = await pool.query(
+      `UPDATE announcements 
+       SET title = COALESCE($1, title),
+           content = COALESCE($2, content),
+           priority = COALESCE($3, priority),
+           attachment_url = COALESCE($4, attachment_url)
+       WHERE id = $5 RETURNING *`,
+      [title, content, priority, attachmentUrl, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Announcement not found.' });
+    }
+
+    res.json({ success: true, announcement: result.rows[0] });
   } catch (error) {
+    console.error('Update announcement error:', error);
     res.status(500).json({ message: 'Server error.' });
   }
 };
 
-// 4. Delete Announcement
+// 5. Delete Announcement
 export const deleteAnnouncement = async (req, res) => {
   const { id } = req.params;
   try {
     await pool.query('DELETE FROM announcements WHERE id = $1', [id]);
     res.json({ success: true, message: 'Announcement deleted.' });
   } catch (error) {
+    console.error('Delete announcement error:', error);
     res.status(500).json({ message: 'Server error.' });
   }
 };
