@@ -39,19 +39,10 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (curl, Postman, mobile apps, Safaricom webhooks)
       if (!origin) return callback(null, true);
-
-      // Allow explicit local origins
       if (allowedOrigins.includes(origin)) return callback(null, true);
-
-      // Allow any Vercel preview/production URL
       if (/\.vercel\.app$/.test(origin)) return callback(null, true);
-
-      // Allow any Render URL
       if (/\.onrender\.com$/.test(origin)) return callback(null, true);
-
-      // Reject everything else
       callback(new Error(`CORS blocked: ${origin}`));
     },
     credentials: true,
@@ -62,8 +53,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploaded files at /api/uploads (to match the frontend)
+app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ============================================
 // HEALTH CHECK
@@ -83,7 +74,7 @@ app.get('/', (req, res) => {
       forms: '/api/forms',
       verify: '/api/verify',
       payments: '/api/payments',
-      uploads: '/uploads',
+      uploads: '/api/uploads',
     },
   });
 });
@@ -100,11 +91,9 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/forms', formsRoutes);
 app.use('/api/verify', verifyRoutes);
 
-// Specific Staff Routes (Must be mounted BEFORE general /api/staff)
 app.use('/api/staff/inputs', inputRoutes);
 app.use('/api/staff', staffRoutes);
 
-// Payment Routes
 app.use('/api/payments', paymentRoutes);
 
 // ============================================
@@ -123,7 +112,6 @@ const startServer = async () => {
     console.error('🚨 Email service init failed:', err.message);
   }
 
-  // Production-specific email check
   if (process.env.NODE_ENV === 'production' && !isEmailEnabled()) {
     console.error('');
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
