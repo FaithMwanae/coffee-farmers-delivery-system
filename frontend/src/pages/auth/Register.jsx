@@ -27,7 +27,18 @@ const Register = () => {
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    // Auto-format phone number
+    if (name === 'phone') {
+      let cleaned = String(value).replace(/\D/g, '');
+      if (cleaned.startsWith('0')) {
+        cleaned = '254' + cleaned.slice(1);
+      }
+      setFormData({ ...formData, phone: cleaned.slice(0, 12) });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -38,6 +49,12 @@ const Register = () => {
 
     if (!name || !email || !phone || !location || !coffeeTrees || !password || !confirmPassword) {
       setError('Please fill in all required fields.');
+      return;
+    }
+
+    // Validate phone format before submitting
+    if (!/^(2547|2541)\d{8}$/.test(phone)) {
+      setError('Phone number must be exactly 12 digits starting with 2547 or 2541.');
       return;
     }
 
@@ -53,7 +70,7 @@ const Register = () => {
       return;
     }
 
-    // ✅ Strong password validation
+    // Strong password validation
     const passCheck = validateStrongPassword(password);
     if (!passCheck.isValid) {
       setError(passCheck.errors.join(' • '));
@@ -71,7 +88,7 @@ const Register = () => {
       const res = await register({
         name: name.trim(),
         email: email.trim(),
-        phone: phone.trim(),
+        phone: phone,
         location: location.trim(),
         coffeeTrees: trees,
         password,
@@ -239,11 +256,16 @@ const Register = () => {
           <Form.Control
             type="tel"
             name="phone"
-            placeholder="e.g., 0712345678"
+            placeholder="e.g., 254712345678"
             value={formData.phone}
             onChange={handleChange}
             autoComplete="tel"
+            pattern="^(2547|2541)\d{8}$"
+            title="Phone number must be 12 digits starting with 2547 or 2541"
           />
+          <Form.Text className="text-muted" style={{ fontSize: '0.72rem' }}>
+            Must be 12 digits (e.g., 254712345678).
+          </Form.Text>
         </Form.Group>
 
         {/* Location */}
