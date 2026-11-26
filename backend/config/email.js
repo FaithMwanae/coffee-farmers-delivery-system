@@ -1,5 +1,3 @@
-// backend/config/email.js
-// You can install the SDK: npm install resend
 import { Resend } from 'resend';
 
 let resend = null;
@@ -23,7 +21,7 @@ export const sendEmail = async ({ to, subject, html, text }) => {
 
   try {
     const data = await resend.emails.send({
-      from: 'Kaliluni Coffee <onboarding@resend.dev>', // Use this for testing, or your verified domain later
+      from: 'Kaliluni Coffee <onboarding@resend.dev>',
       to,
       subject,
       html,
@@ -36,3 +34,7 @@ export const sendEmail = async ({ to, subject, html, text }) => {
     return { success: false, reason: err.message };
   }
 };
+
+// ⭐ THESE WERE MISSING AND CAUSED THE CRASH
+export const isEmailEnabled = () => emailEnabled;
+export const getEmailMode = () => (emailEnabled ? 'resend' : 'disabled');
