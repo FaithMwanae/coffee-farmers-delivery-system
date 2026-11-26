@@ -1,33 +1,27 @@
 import pool from '../config/pool.js';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs'; // Added to fix the crash
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
 
-// ============================================
-// MULTER CONFIGURATION
-// ============================================
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = 'uploads/announcements';
-    // Create the directory if it doesn't exist
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+// 1. Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// 2. Configure Multer to use Cloudinary
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'kaliluni_announcements', // Folder name inside Cloudinary
+    allowed_formats: ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'],
   },
 });
 
-// Export the upload middleware so routes can use it
 export const upload = multer({ 
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: (req, file, cb) => {
-    const allowed = /pdf|doc|docx|jpg|jpeg|png/;
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (allowed.test(ext)) cb(null, true);
-    else cb(new Error('Only PDF, Word, and Image files are allowed.'));
-  }
 });
 
 // ============================================
@@ -48,12 +42,10 @@ export const getAllAnnouncements = async (req, res) => {
 // ============================================
 export const createAnnouncement = async (req, res) => {
   const { title, content, priority } = req.body;
-  
-  // Use the logged-in user's name as the author
   const author = req.user ? req.user.name : 'Admin';
   
-  // Save the file path if a file was uploaded
-  const attachmentUrl = req.file ? `/uploads/announcements/${req.file.filename}` : null;
+  // req.file.path contains the full Cloudinary URL
+  const attachmentUrl = req.file ? req.file.path : null;
 
   if (!title || !content) {
     return res.status(400).json({ message: 'Title and content are required.' });
@@ -79,7 +71,7 @@ export const updateAnnouncement = async (req, res) => {
   const { id } = req.params;
   const { title, content, priority } = req.body;
   
-  const attachmentUrl = req.file ? `/uploads/announcements/${req.file.filename}` : undefined;
+  const attachmentUrl = req.file ? req.file.path : undefined;
 
   try {
     const result = await pool.query(
