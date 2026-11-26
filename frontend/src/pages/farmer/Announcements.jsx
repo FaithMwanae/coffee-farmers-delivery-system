@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Container, Card, Badge, Spinner, Alert } from 'react-bootstrap';
+import { Container, Card, Badge, Spinner, Alert, Button } from 'react-bootstrap';
 import { farmerApi } from '../../api/farmerApi';
 import { formatDate } from '../../utils/formatters';
 import PageHeader from '../../components/common/PageHeader';
@@ -82,6 +82,21 @@ const Announcements = () => {
               <p className="mb-0" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>
                 {a.content}
               </p>
+
+              {/* Show download button if attachment exists */}
+              {a.attachment_url && (
+                <div className="mt-3 pt-3 border-top">
+                  <Button
+                    variant="outline-success"
+                    size="sm"
+                    href={a.attachment_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <i className="bi bi-download me-1"></i> Download Attachment
+                  </Button>
+                </div>
+              )}
             </Card.Body>
           </Card>
         ))
