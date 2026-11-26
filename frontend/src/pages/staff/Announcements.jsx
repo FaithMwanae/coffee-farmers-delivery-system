@@ -20,6 +20,9 @@ const Announcements = () => {
     content: '',
     priority: 'normal',
   });
+  
+  // State for file upload
+  const [file, setFile] = useState(null);
 
   const loadAnnouncements = async () => {
     try {
@@ -40,6 +43,7 @@ const Announcements = () => {
   const openCreate = () => {
     setEditing(null);
     setForm({ title: '', content: '', priority: 'normal' });
+    setFile(null);
     setShowModal(true);
   };
 
@@ -50,6 +54,7 @@ const Announcements = () => {
       content: a.content,
       priority: a.priority || 'normal',
     });
+    setFile(null); // Reset file input on edit
     setShowModal(true);
   };
 
@@ -66,15 +71,25 @@ const Announcements = () => {
 
     setSaving(true);
     try {
+      // Use FormData to handle file uploads
+      const formData = new FormData();
+      formData.append('title', form.title);
+      formData.append('content', form.content);
+      formData.append('priority', form.priority);
+      if (file) {
+        formData.append('attachment', file);
+      }
+
       if (editing) {
-        await announcementApi.update(editing, form);
+        await announcementApi.update(editing, formData);
         toast.success('Announcement updated');
       } else {
-        await announcementApi.create(form);
+        await announcementApi.create(formData);
         toast.success('Announcement published');
       }
       setShowModal(false);
       setForm({ title: '', content: '', priority: 'normal' });
+      setFile(null);
       setEditing(null);
       loadAnnouncements();
     } catch (err) {
@@ -111,6 +126,8 @@ const Announcements = () => {
 
   if (error) return <Alert variant="danger">{error}</Alert>;
 
+  const API_URL = import.meta.env.VITE_API_URL || 'https://kaliluni-backend.onrender.com';
+
   return (
     <Container fluid className="px-0">
       <PageHeader
@@ -118,7 +135,7 @@ const Announcements = () => {
         subtitle={`${announcements.length} total — visible to all farmers`}
         action={
           <Button variant="success" size="sm" onClick={openCreate}>
-            New Announcement
+            <i className="bi bi-plus-lg me-1"></i> New Announcement
           </Button>
         }
       />
@@ -140,7 +157,7 @@ const Announcements = () => {
           {announcements.map((a) => (
             <Col lg={6} key={a.id}>
               <Card className="border-0 shadow-sm h-100">
-                <Card.Body className="p-4">
+                <Card.Body className="p-4 d-flex flex-column">
                   <div className="d-flex justify-content-between align-items-start mb-2 gap-2">
                     <h5 className="fw-semibold mb-0">{a.title}</h5>
                     {a.priority === 'high' && (
@@ -163,18 +180,34 @@ const Announcements = () => {
                     {formatDate(a.date)} · {a.author}
                   </div>
 
-                  <p className="mb-3" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>
+                  <p className="mb-3 flex-grow-1" style={{ fontSize: '0.9rem', lineHeight: 1.6 }}>
                     {a.content}
                   </p>
 
-                  <div className="d-flex gap-2">
+                  {/* Show attachment if exists */}
+                  {a.attachment_url && (
+                    <div className="mb-3">
+                      <Button
+                        variant="outline-success"
+                        size="sm"
+                        href={`${API_URL}${a.attachment_url}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: '0.8rem' }}
+                      >
+                        <i className="bi bi-paperclip me-1"></i> View Attachment
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="d-flex gap-2 mt-auto pt-3 border-top">
                     <Button
                       size="sm"
                       variant="outline-primary"
                       onClick={() => openEdit(a)}
                       style={{ fontSize: '0.8rem' }}
                     >
-                      Edit
+                      <i className="bi bi-pencil me-1"></i> Edit
                     </Button>
                     <Button
                       size="sm"
@@ -182,7 +215,7 @@ const Announcements = () => {
                       onClick={() => handleDelete(a)}
                       style={{ fontSize: '0.8rem' }}
                     >
-                      Delete
+                      <i className="bi bi-trash me-1"></i> Delete
                     </Button>
                   </div>
                 </Card.Body>
@@ -259,6 +292,22 @@ const Announcements = () => {
                   onChange={handleChange}
                 />
               </div>
+            </Form.Group>
+
+            {/* File Upload Input */}
+            <Form.Group className="mb-3">
+              <Form.Label className="small fw-semibold text-secondary">
+                Attachment (Optional)
+              </Form.Label>
+              <Form.Control
+                type="file"
+                onChange={(e) => setFile(e.target.files[0])}
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                style={{ fontSize: '0.9rem' }}
+              />
+              <Form.Text className="text-muted" style={{ fontSize: '0.72rem' }}>
+                Upload a PDF, Word document, or image (Max 5MB).
+              </Form.Text>
             </Form.Group>
 
             <Alert variant="light" className="mb-0 small border">

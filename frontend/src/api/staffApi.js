@@ -141,6 +141,26 @@ export const staffApi = {
     const { data } = await client.get('/staff/charts');
     return data;
   },
+
+  // ============================================
+  // ANNOUNCEMENTS (Added for Staff UI)
+  // ============================================
+  getAnnouncements: async () => {
+    const { data } = await client.get('/announcements');
+    return data;
+  },
+
+  createAnnouncement: async (formData) => {
+    const { data } = await client.post('/announcements', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.announcement;
+  },
+
+  deleteAnnouncement: async (id) => {
+    const { data } = await client.delete(`/announcements/${id}`);
+    return data;
+  },
 };
 
 export default staffApi;

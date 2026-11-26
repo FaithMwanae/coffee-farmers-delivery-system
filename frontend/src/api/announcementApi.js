@@ -7,15 +7,19 @@ export const announcementApi = {
     return data;
   },
 
-  // Create a new announcement
+  // Create a new announcement (Supports File Upload)
   create: async (payload) => {
-    const { data } = await client.post('/announcements', payload);
+    const { data } = await client.post('/announcements', payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return data.announcement;
   },
 
-  // Update an announcement
+  // Update an announcement (Supports File Upload)
   update: async (id, payload) => {
-    const { data } = await client.put(`/announcements/${id}`, payload);
+    const { data } = await client.put(`/announcements/${id}`, payload, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return data.announcement;
   },
 
