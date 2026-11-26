@@ -1,12 +1,15 @@
 import pool from '../config/pool.js';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
+import fs from 'fs'; // Added to fix the crash
 
-// 1. Configure Multer for file uploads
+// ============================================
+// MULTER CONFIGURATION
+// ============================================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = 'uploads/announcements';
+    // Create the directory if it doesn't exist
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -15,6 +18,7 @@ const storage = multer.diskStorage({
   },
 });
 
+// Export the upload middleware so routes can use it
 export const upload = multer({ 
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
@@ -26,7 +30,9 @@ export const upload = multer({
   }
 });
 
-// 2. Get All Announcements
+// ============================================
+// GET ALL ANNOUNCEMENTS
+// ============================================
 export const getAllAnnouncements = async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM announcements ORDER BY date DESC');
@@ -37,13 +43,16 @@ export const getAllAnnouncements = async (req, res) => {
   }
 };
 
-// 3. Create Announcement
+// ============================================
+// CREATE ANNOUNCEMENT
+// ============================================
 export const createAnnouncement = async (req, res) => {
   const { title, content, priority } = req.body;
   
   // Use the logged-in user's name as the author
   const author = req.user ? req.user.name : 'Admin';
   
+  // Save the file path if a file was uploaded
   const attachmentUrl = req.file ? `/uploads/announcements/${req.file.filename}` : null;
 
   if (!title || !content) {
@@ -63,7 +72,9 @@ export const createAnnouncement = async (req, res) => {
   }
 };
 
-// 4. Update Announcement
+// ============================================
+// UPDATE ANNOUNCEMENT
+// ============================================
 export const updateAnnouncement = async (req, res) => {
   const { id } = req.params;
   const { title, content, priority } = req.body;
@@ -92,7 +103,9 @@ export const updateAnnouncement = async (req, res) => {
   }
 };
 
-// 5. Delete Announcement
+// ============================================
+// DELETE ANNOUNCEMENT
+// ============================================
 export const deleteAnnouncement = async (req, res) => {
   const { id } = req.params;
   try {
